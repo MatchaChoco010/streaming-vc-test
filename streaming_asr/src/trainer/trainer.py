@@ -389,21 +389,19 @@ class Trainer:
                     if self.step == 0:
                         self.log.add_text(
                             f"gt/text-{j}",
-                            self.tokenizer.decode(
-                                text[j].argmax(dim=-1).tolist(), ignore_repeat=False
-                            ),
+                            self.tokenizer.decode(text[j].argmax(dim=-1).tolist()),
                             global_step=self.step,
                         )
                     self.log.add_text(
                         f"ctc/text-{j}",
-                        self.tokenizer.decode(ctc_output[j].argmax(dim=-1).tolist()),
+                        self.tokenizer.decode(
+                            ctc_output[j].argmax(dim=-1).tolist(), ignore_repeat=True
+                        ),
                         global_step=self.step,
                     )
                     self.log.add_text(
                         f"att/text-{j}",
-                        self.tokenizer.decode(
-                            att_output[j].argmax(dim=-1).tolist(), ignore_repeat=False
-                        ),
+                        self.tokenizer.decode(att_output[j].argmax(dim=-1).tolist()),
                         global_step=self.step,
                     )
 

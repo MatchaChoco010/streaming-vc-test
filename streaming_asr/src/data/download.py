@@ -28,7 +28,7 @@ def download():
             output_path,
             lambda block_num, block_size, total_size: print(
                 f"downloading {output_filename}",
-                f"{round(block_num * block_size / total_size *100, 2)}%",
+                f"{round(block_num * block_size / total_size *100, 2):>6.2f}%",
                 end="\r",
             ),
         )

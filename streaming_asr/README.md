@@ -16,5 +16,5 @@ poetry run python bin/train.py
 ## 3 onnxモデルの出力
 
 ```
-poetry run python bin/export_onnx.py
+poetry run python bin/export.py
 ```

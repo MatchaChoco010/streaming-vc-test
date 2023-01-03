@@ -8,13 +8,11 @@ from convmelspec.stft import ConvertibleSpectrogram as Spectrogram
 from src.module.mask import length_mask
 
 
-class Delta(torch.jit.ScriptModule):
+class Delta(torch.nn.Module):
     """
     特徴量の微分を特徴量に追加するモジュール。
     速度と加速度をチャンネルとして追加する。
     """
-
-    __constants__ = ["order", "window_size", "padding"]
 
     def __init__(self):
         super(Delta, self).__init__()
@@ -24,7 +22,6 @@ class Delta(torch.jit.ScriptModule):
         self.register_buffer("filters", filters)
         self.padding = (0, (filters.shape[-1] - 1) // 2)
 
-    @torch.jit.script_method
     def forward(self, xs) -> torch.Tensor:
         """
         Arguments:
@@ -34,9 +31,10 @@ class Delta(torch.jit.ScriptModule):
             xs: torch.Tensor (batch, 3, feature_size, seq_len)
         """
         xs = xs.unsqueeze(1)
-        return F.conv2d(xs, weight=self.filters, padding=self.padding)
+        weight: torch.Tensor = self.filters  # type: ignore
+        return F.conv2d(xs, weight=weight, padding=self.padding)
 
-    def _create_filters(self):
+    def _create_filters(self) -> torch.Tensor:
         scales = [[1.0]]
         for i in range(1, 3):
             prev_offset = (len(scales[i - 1]) - 1) // 2
