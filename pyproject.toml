@@ -11,6 +11,8 @@ jiwer = "^2.5.1"
 joblib = "^1.2.0"
 librosa = "^0.9.2"
 numpy = "<1.24"
+onnx = "^1.13.0"
+onnxsim = "^0.4.10"
 PySoundFile = "^0.9.0.post1"
 tensorboard = "^2.11.0"
 
