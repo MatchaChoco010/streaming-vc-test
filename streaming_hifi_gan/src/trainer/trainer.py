@@ -63,7 +63,9 @@ class Trainer:
 
         self.optimizer_g = optim.AdamW(
             # self.generator.parameters(), lr=0.0002, betas=(0.8, 0.99)
-            self.generator.parameters(), lr=0.002, betas=(0.8, 0.99)
+            self.generator.parameters(),
+            lr=0.002,
+            betas=(0.8, 0.99),
         )
         self.optimizer_d = optim.AdamW(
             itertools.chain(self.mpd.parameters(), self.msd.parameters()),
@@ -95,14 +97,14 @@ class Trainer:
         self.msd.load_state_dict(ckpt["msd"])
         self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
         self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
-        self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
-        self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
+        # self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
+        # self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
         self.step = ckpt["step"]
         self.n_epochs = ckpt["n_epochs"]
         self.best_val_error = ckpt["best_val_error"]
         print(f"Load checkpoint from {ckpt_path}")
 
-    def save_ckpt(self, valid: bool = False, best: bool = False):
+    def save_ckpt(self, best: bool = False):
         """
         ckptを保存する
 
@@ -112,21 +114,18 @@ class Trainer:
             best: bool
                 ベストスコアかどうか
         """
-        if valid:
-            if best:
-                ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-best.pt")
-            else:
-                ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
+        if best:
+            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-best.pt")
         else:
-            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
+            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
         save_dict = {
             "generator": self.generator.state_dict(),
             "mpd": self.mpd.state_dict(),
             "msd": self.msd.state_dict(),
             "optimizer_g": self.optimizer_g.state_dict(),
             "optimizer_d": self.optimizer_d.state_dict(),
-            "scheduler_g": self.scheduler_g.state_dict(),
-            "scheduler_d": self.scheduler_d.state_dict(),
+            # "scheduler_g": self.scheduler_g.state_dict(),
+            # "scheduler_d": self.scheduler_d.state_dict(),
             "step": self.step,
             "n_epochs": self.n_epochs,
             "best_val_error": self.best_val_error,
@@ -228,8 +227,6 @@ class Trainer:
                     self.log.add_scalar("train/loss/d", loss_disc_all.item(), self.step)
                     self.log.add_scalar("train/loss/g", loss_gen_all.item(), self.step)
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
-                    ## Save latest ckpt
-                    self.save_ckpt()
 
                 # バリデーションの実行
                 if self.step % self.valid_step == 0:
@@ -273,12 +270,12 @@ class Trainer:
         self.generator.train()
 
         # 現在のckptをlatestとして保存
-        self.save_ckpt(valid=True)
+        self.save_ckpt()
 
         # それぞれの指標で良くなっていたら保存
         if val_err < self.best_val_error:
             self.best_val_error = val_err
-            self.save_ckpt(valid=True, best=True)
+            self.save_ckpt(best=True)
 
         # テストデータで試す
         with torch.no_grad():
