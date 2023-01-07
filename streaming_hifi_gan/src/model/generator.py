@@ -23,9 +23,7 @@ class Generator(torch.nn.Module):
         self.num_upsamples = len(self.upsample_rates)
 
         self.conv_pre = weight_norm(
-            # CausalConv1d(80, self.upsample_initial_channel, 7, 1, padding=3)
-            # CausalConv1d(80, self.upsample_initial_channel, 7, 1)
-            Conv1d(80, self.upsample_initial_channel, 7, 1, padding=3)
+            CausalConv1d(80, self.upsample_initial_channel, 7, 1, padding=3)
         )
 
         self.ups = nn.ModuleList()
@@ -52,9 +50,7 @@ class Generator(torch.nn.Module):
             ):
                 self.resblocks.append(ResBlock(ch, k, d))
 
-        # self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1, padding=3))
-        # self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1))
-        self.conv_post = weight_norm(Conv1d(ch, 1, 7, 1, padding=3))
+        self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1, padding=3))
         self.ups.apply(init_weights)
         self.conv_post.apply(init_weights)
 

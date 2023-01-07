@@ -13,34 +13,10 @@ LRELU_SLOPE = 0.1
 class ResBlock(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
         super(ResBlock, self).__init__()
-        # self.convs = nn.ModuleList(
-        #     [
-        #         weight_norm(
-        #             CausalConv1d(
-        #                 channels,
-        #                 channels,
-        #                 kernel_size,
-        #                 1,
-        #                 dilation=dilation[0],
-        #                 # padding=get_padding(kernel_size, dilation[0]),
-        #             )
-        #         ),
-        #         weight_norm(
-        #             CausalConv1d(
-        #                 channels,
-        #                 channels,
-        #                 kernel_size,
-        #                 1,
-        #                 dilation=dilation[1],
-        #                 # padding=get_padding(kernel_size, dilation[1]),
-        #             )
-        #         ),
-        #     ]
-        # )
         self.convs = nn.ModuleList(
             [
                 weight_norm(
-                    Conv1d(
+                    CausalConv1d(
                         channels,
                         channels,
                         kernel_size,
@@ -50,7 +26,7 @@ class ResBlock(torch.nn.Module):
                     )
                 ),
                 weight_norm(
-                    Conv1d(
+                    CausalConv1d(
                         channels,
                         channels,
                         kernel_size,
