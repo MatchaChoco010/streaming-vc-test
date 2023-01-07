@@ -125,27 +125,20 @@ class Trainer:
         self.best_cer = ckpt["best_cer"]
         print(f"Load checkpoint from {ckpt_path}")
 
-    def save_ckpt(
-        self, valid: bool = False, best: bool = False, best_task: str = "att"
-    ):
+    def save_ckpt(self, best: bool = False, best_task: str = "att"):
         """
         ckptを保存する
 
         Arguments:
-            valid: bool
-                バリデーション時かどうか
             best: bool
                 ベストスコアかどうか
             best_task: str
                 ベストスコアのタスクの種類
         """
-        if valid:
-            if best:
-                ckpt_path = os.path.join(self.ckpt_dir, f"best-{best_task}.pt")
-            else:
-                ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
+        if best:
+            ckpt_path = os.path.join(self.ckpt_dir, f"best-{best_task}.pt")
         else:
-            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
+            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
         save_dict = {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
@@ -315,8 +308,6 @@ class Trainer:
                     )
                     self.log.add_scalar("train/cer/ctc", cer_ctc, self.step)
                     self.log.add_scalar("train/cer/att", cer_att, self.step)
-                    ## Save latest ckpt
-                    self.save_ckpt()
 
                 # バリデーションの実行
                 if self.step % self.valid_step == 0:
@@ -416,14 +407,14 @@ class Trainer:
         )
 
         # 現在のckptをlatestとして保存
-        self.save_ckpt(valid=True)
+        self.save_ckpt()
 
         # それぞれの指標で良くなっていたら保存
         for task in ["att", "ctc"]:
             cer = sum(dev_cer[task]) / len(dev_cer[task])
             if cer < self.best_cer[task]:
                 self.best_cer[task] = cer
-                self.save_ckpt(valid=True, best=True, best_task=task)
+                self.save_ckpt(best=True, best_task=task)
             self.log.add_scalar(
                 f"valid/cer/{task}",
                 cer,

@@ -92,9 +92,10 @@ class FeatureExtractor(nn.Module):
                 各バッチごとの特徴量の長さ
         """
         ys = self.melspec(xs)[:, :, :-1]
-        ys = torchaudio.functional.amplitude_to_DB(
-            ys, amin=1e-05, multiplier=20.0, top_db=80.0, db_multiplier=0.0
-        )
+
+        # メルスペクトログラムをDBベースにするためにlogを取る
+        ys = torch.log(torch.clamp(ys, min=1e-5))
+
         ys = self.delta(ys)
 
         # (batch, channel, feature_size, seq_len) -> (batch, feature_size, seq_len)
