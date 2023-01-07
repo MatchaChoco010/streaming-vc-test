@@ -13,7 +13,7 @@ LRELU_SLOPE = 0.1
 class Generator(torch.nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
-        self.upsample_rates = [8, 8, 8]
+        self.upsample_rates = [8, 8, 4]
         self.upsample_kernel_sizes = [16, 16, 8]
         self.upsample_initial_channel = 256
         self.resblock_kernel_sizes = [3, 5, 7]
@@ -24,7 +24,8 @@ class Generator(torch.nn.Module):
 
         self.conv_pre = weight_norm(
             # CausalConv1d(80, self.upsample_initial_channel, 7, 1, padding=3)
-            CausalConv1d(80, self.upsample_initial_channel, 7, 1)
+            # CausalConv1d(80, self.upsample_initial_channel, 7, 1)
+            Conv1d(80, self.upsample_initial_channel, 7, 1, padding=3)
         )
 
         self.ups = nn.ModuleList()
@@ -52,7 +53,8 @@ class Generator(torch.nn.Module):
                 self.resblocks.append(ResBlock(ch, k, d))
 
         # self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1, padding=3))
-        self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1))
+        # self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1))
+        self.conv_post = weight_norm(Conv1d(ch, 1, 7, 1, padding=3))
         self.ups.apply(init_weights)
         self.conv_post.apply(init_weights)
 

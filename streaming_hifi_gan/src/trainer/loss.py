@@ -6,10 +6,6 @@ def feature_loss(fmap_r, fmap_g):
     loss = torch.zeros(1).to(device=fmap_r[0][0].device)
     for dr, dg in zip(fmap_r, fmap_g):
         for rl, gl in zip(dr, dg):
-            if len(gl.shape) == 4:
-                gl = F.pad(gl, (0, 0, 0, rl.shape[2] - gl.shape[2]), "constant")
-            elif len(gl.shape) == 3:
-                gl = F.pad(gl, (0, rl.shape[2] - gl.shape[2]), "constant")
             loss += torch.mean(torch.abs(rl - gl))
 
     return loss * 2

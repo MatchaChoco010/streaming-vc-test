@@ -7,4 +7,3 @@ import src.data.prepare as prepare
 
 if __name__ == "__main__":
     prepare.resample()
-    prepare.calc_mel()

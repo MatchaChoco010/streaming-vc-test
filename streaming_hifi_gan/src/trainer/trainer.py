@@ -10,9 +10,12 @@ from src.data.data_loader import load_dataset
 from src.model.generator import Generator
 from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
+from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
+
+SEGMENT_SIZE = 8192
 
 
 class Trainer:
@@ -24,7 +27,7 @@ class Trainer:
         self,
         batch_size: int = 16,
         max_step: int = 1000001,
-        progress_step: int = 10,
+        progress_step: int = 5,
         valid_step: int = 1000,
         exp_name: str | None = None,
     ):
@@ -62,24 +65,20 @@ class Trainer:
         self.msd = MultiScaleDiscriminator().to(self.device)
 
         self.optimizer_g = optim.AdamW(
-            # self.generator.parameters(), lr=0.0002, betas=(0.8, 0.99)
-            self.generator.parameters(),
-            lr=0.002,
-            betas=(0.8, 0.99),
+            self.generator.parameters(), lr=0.0002, betas=(0.8, 0.99)
         )
         self.optimizer_d = optim.AdamW(
             itertools.chain(self.mpd.parameters(), self.msd.parameters()),
-            # lr=0.0002,
-            lr=0.002,
+            lr=0.0002,
             betas=(0.8, 0.99),
         )
 
-        # self.scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
-        #     self.optimizer_g, gamma=0.999
-        # )
-        # self.scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
-        #     self.optimizer_d, gamma=0.999
-        # )
+        self.scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+            self.optimizer_g, gamma=0.999
+        )
+        self.scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+            self.optimizer_d, gamma=0.999
+        )
 
         self.best_val_error = 100.0
 
@@ -97,8 +96,8 @@ class Trainer:
         self.msd.load_state_dict(ckpt["msd"])
         self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
         self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
-        # self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
-        # self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
+        self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
+        self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
         self.step = ckpt["step"]
         self.n_epochs = ckpt["n_epochs"]
         self.best_val_error = ckpt["best_val_error"]
@@ -109,8 +108,6 @@ class Trainer:
         ckptを保存する
 
         Arguments:
-            valid: bool
-                バリデーション時かどうか
             best: bool
                 ベストスコアかどうか
         """
@@ -124,8 +121,8 @@ class Trainer:
             "msd": self.msd.state_dict(),
             "optimizer_g": self.optimizer_g.state_dict(),
             "optimizer_d": self.optimizer_d.state_dict(),
-            # "scheduler_g": self.scheduler_g.state_dict(),
-            # "scheduler_d": self.scheduler_d.state_dict(),
+            "scheduler_g": self.scheduler_g.state_dict(),
+            "scheduler_d": self.scheduler_d.state_dict(),
             "step": self.step,
             "n_epochs": self.n_epochs,
             "best_val_error": self.best_val_error,
@@ -159,18 +156,18 @@ class Trainer:
 
         while self.step < self.max_step:
             for audio, mel in self.data_loader:
-                audio = audio.to(device=self.device)
-                mel = mel.to(device=self.device)
+                audio = torch.autograd.Variable(audio.to(device=self.device))
+                mel = torch.autograd.Variable(mel.to(device=self.device))
 
-                audio_g_hat = self.generator(mel)
+                audio_g_hat = self.generator(mel)[:, :, :SEGMENT_SIZE]
                 mel_g_hat = torchaudio.transforms.MelSpectrogram(
-                    sample_rate=48000,
-                    n_fft=2048,
-                    win_length=2048,
-                    hop_length=512,
+                    n_fft=1024,
                     n_mels=80,
+                    sample_rate=24000,
+                    hop_length=256,
+                    win_length=1024,
                 ).to(device=self.device)(audio_g_hat.squeeze(1))
-                mel_g_hat = mel_g_hat[:, :, :-1]
+                mel_g_hat = log_melspectrogram(mel_g_hat)
 
                 self.optimizer_d.zero_grad()
 
@@ -241,8 +238,8 @@ class Trainer:
                     break
 
             self.n_epochs += 1
-            # self.scheduler_g.step()
-            # self.scheduler_d.step()
+            self.scheduler_g.step()
+            self.scheduler_d.step()
         self.log.close()
 
     def validate(self):
@@ -252,16 +249,18 @@ class Trainer:
         val_err_tot = 0.0
         with torch.no_grad():
             for audio, mel in self.validation_loader:
-                audio_g_hat = self.generator(mel.to(device=self.device))
+                audio_g_hat = self.generator(mel.to(device=self.device))[
+                    :, :, :SEGMENT_SIZE
+                ]
                 mel = mel.to(device=self.device)
                 mel_g_hat = torchaudio.transforms.MelSpectrogram(
-                    n_fft=2048,
+                    n_fft=1024,
                     n_mels=80,
-                    sample_rate=48000,
-                    hop_length=512,
-                    win_length=2048,
+                    sample_rate=24000,
+                    hop_length=256,
+                    win_length=1024,
                 ).to(device=self.device)(audio_g_hat.squeeze(1))
-                mel_g_hat = mel_g_hat[:, :, :-1]
+                mel_g_hat = log_melspectrogram(mel_g_hat)
                 val_err_tot += F.l1_loss(mel, mel_g_hat).item()
 
             val_err = val_err_tot / len(self.validation_loader)
@@ -291,6 +290,7 @@ class Trainer:
                     hop_length=256,
                     win_length=1024,
                 ).to(device=self.device)(y)
+                mel = log_melspectrogram(mel)
                 audio_items = []
 
                 # melを6sampleずつずらしながらhistory_sizeだけ食わせることで
@@ -298,7 +298,7 @@ class Trainer:
                 for i in range(0, mel.shape[2] // 6):
                     mel_item = mel[:, :, max(0, i * 6 - mel_history_size) : (i + 1) * 6]
                     audio_item = self.generator(mel_item).squeeze(0).squeeze(0)
-                    audio_item = audio_item[-6 * 512 :]
+                    audio_item = audio_item[-6 * 256 :]
                     audio_items.append(audio_item)
                 audio = torch.cat(audio_items)
                 audio = audio.unsqueeze(0)
