@@ -26,7 +26,7 @@ class Trainer:
     def __init__(
         self,
         batch_size: int = 16,
-        max_step: int = 1000001,
+        max_step: int = 10000001,
         progress_step: int = 5,
         valid_step: int = 1000,
         exp_name: str | None = None,
