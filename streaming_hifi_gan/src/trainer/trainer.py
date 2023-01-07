@@ -304,7 +304,7 @@ class Trainer:
                 audio = audio.unsqueeze(0)
 
                 self.log.add_audio(
-                    f"generated/audio/{filepath.name}", audio[0], self.step, 48000
+                    f"generated/audio/{filepath.name}", audio[0], self.step, 24000
                 )
 
         # Resume training
