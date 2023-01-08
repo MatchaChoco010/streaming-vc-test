@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from src.module.causal_conv1d import CausalConv1d
 from src.module.init_weights import init_weights
 from src.module.res_block import ResBlock
-from torch.nn import Conv1d, ConvTranspose1d
+from torch.nn import ConvTranspose1d
 from torch.nn.utils import remove_weight_norm, weight_norm
 
 LRELU_SLOPE = 0.1
@@ -23,7 +23,7 @@ class Generator(torch.nn.Module):
         self.num_upsamples = len(self.upsample_rates)
 
         self.conv_pre = weight_norm(
-            CausalConv1d(80, self.upsample_initial_channel, 7, 1, padding=3)
+            CausalConv1d(80, self.upsample_initial_channel, 7, 1)
         )
 
         self.ups = nn.ModuleList()
@@ -50,7 +50,7 @@ class Generator(torch.nn.Module):
             ):
                 self.resblocks.append(ResBlock(ch, k, d))
 
-        self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1, padding=3))
+        self.conv_post = weight_norm(CausalConv1d(ch, 1, 7, 1))
         self.ups.apply(init_weights)
         self.conv_post.apply(init_weights)
 

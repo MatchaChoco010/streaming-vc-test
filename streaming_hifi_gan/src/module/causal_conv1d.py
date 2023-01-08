@@ -12,7 +12,6 @@ class CausalConv1d(torch.nn.Conv1d):
         dilation=1,
         groups=1,
         bias=True,
-        padding=0,
     ):
         super(CausalConv1d, self).__init__(
             in_channels,
@@ -22,12 +21,10 @@ class CausalConv1d(torch.nn.Conv1d):
             dilation=dilation,
             groups=groups,
             bias=bias,
-            padding=padding,
+            padding=0,
         )
 
         self.__padding = (kernel_size - 1) * dilation
 
     def forward(self, input):
-        return super(CausalConv1d, self).forward(F.pad(input, (self.__padding, 0)))[
-            :, :, : -self.__padding
-        ]
+        return super(CausalConv1d, self).forward(F.pad(input, (self.__padding, 0)))
