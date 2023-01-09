@@ -8,8 +8,9 @@ import torch
 import torch.nn.functional as F
 import torchaudio
 from src.data.data_loader import load_dataset
-from src.model.fft_block import FFTBlock
 from src.model.generator import Generator
+from src.model.vc_model import VCModel
+from src.trainer.loss import SpectralConvergengeLoss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -75,15 +76,18 @@ class Trainer:
             providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
         )
 
-        self.model = FFTBlock(512, 80).to(self.device)
+        self.model = VCModel().to(self.device)
 
         self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.loss = F.mse_loss
+        self.mse_loss = F.mse_loss
+        self.sc_loss = SpectralConvergengeLoss()
 
-        self.optimizer = optim.Adadelta(self.model.parameters())
+        self.optimizer = optim.AdamW(
+            self.model.parameters(), lr=0.001, betas=(0.9, 0.99)
+        )
 
         if exp_name is not None:
             self.load_ckpt()
@@ -136,7 +140,9 @@ class Trainer:
         input_name = self.feature_extractor.get_inputs()[0].name
         input_lengths_name = self.feature_extractor.get_inputs()[1].name
         audio = audio.contiguous()
-        audio_length = torch.sum(audio, dim=-1).to(dtype=torch.int64).contiguous()
+        audio_length = (
+            torch.sum(torch.ones_like(audio), dim=-1).to(dtype=torch.int64).contiguous()
+        )
 
         output_name = self.feature_extractor.get_outputs()[0].name
         output = torch.empty(
@@ -253,7 +259,7 @@ class Trainer:
                 mel_hat = self.model(feature)
 
                 # calc loss
-                loss = self.loss(mel, mel_hat)
+                loss = self.mse_loss(mel, mel_hat) + self.sc_loss(mel, mel_hat)
 
                 # optimizer step
                 self.optimizer.zero_grad()
@@ -272,6 +278,17 @@ class Trainer:
                     ## tensorboard
                     self.log.add_scalar("train/loss", loss.item(), self.step)
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
+
+                    if self.step % 5000 == 0:
+                        self.log.add_image(
+                            "mel", (mel[0] + 15) / 30, self.step, dataformats="HW"
+                        )
+                        self.log.add_image(
+                            "mel_hat",
+                            (mel_hat[0] + 15) / 30,
+                            self.step,
+                            dataformats="HW",
+                        )
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
                 torch.cuda.empty_cache()
@@ -303,7 +320,7 @@ class Trainer:
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
                 current_time = self.get_time()
                 print(
-                    f"[{current_time}][Step: {self.step}] process test file: {filepath.name[:24]}"
+                    f"[{current_time}][Step: {self.step}] Start convert test file : {filepath.name[:24]}"
                 )
 
                 y, sr = torchaudio.load(str(filepath))
@@ -316,7 +333,7 @@ class Trainer:
                 mel_hat_history: torch.Tensor | None = None
                 audio_items = []
                 for i in range(0, y.shape[0], 256 * 6):
-                    audio = y[i : 256 * 6]
+                    audio = y[i : i + 256 * 6]
                     audio = F.pad(audio, (0, 256 * 6 - audio.shape[0]))
                     audio = audio.unsqueeze(0)
 
@@ -325,29 +342,27 @@ class Trainer:
                     if feat_history is None:
                         feat_history = feat
                     else:
-                        feat_history = torch.cat([feat_history, feat], dim=1)[
-                            :, -mel_history_size:, :
-                        ]
+                        feat_history = torch.cat([feat_history, feat], dim=1)
 
-                    feature = self.encode(feat_history)[:, -6:, :]
+                    # feature = self.encode(feat_history[:, -mel_history_size:, :])[
+                    feature = self.encode(feat)[:, -6:, :]
 
                     if mel_history is None:
                         mel_history = feature
                     else:
-                        mel_history = torch.cat([mel_history, feature], dim=1)[
-                            :, -mel_history_size:, :
-                        ]
+                        mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.model(mel_history)[:, :, -6:]
+                    # mel_hat = self.model(mel_history[:, -mel_history_size:, :])[
+                    mel_hat = self.model(feature)[:, :, -6:]
 
                     if mel_hat_history is None:
                         mel_hat_history = mel_hat
                     else:
-                        mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)[
-                            :, :, -mel_history_size:
-                        ]
+                        mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
 
-                    audio_hat = self.vocoder(mel_hat_history)[:, :, -256 * 6 :]
+                    audio_hat = self.vocoder(mel_hat_history[:, :, -mel_history_size:])[
+                        :, :, -256 * 6 :
+                    ]
                     audio_items.append(audio_hat)
 
                     # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354

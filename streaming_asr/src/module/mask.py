@@ -61,10 +61,11 @@ def chunk_mask(seq_size: int, chunk_size: int) -> torch.Tensor:
     Returns:
         mask: Tensor (1, seq_size, seq_size)
     """
-    # assert seq_size % chunk_size == 0
-    ret = torch.zeros(1, seq_size, seq_size, dtype=torch.bool)
-    for i in range(seq_size):
-        for j in range(seq_size):
-            if i // chunk_size <= j // chunk_size:
-                ret[:, i, j] = 1
-    return ret
+    a = torch.matmul(
+        torch.ones((seq_size, 1), dtype=torch.long), torch.arange(seq_size).unsqueeze(0)
+    )
+    b = torch.matmul(
+        torch.arange(seq_size).unsqueeze(1), torch.ones((1, seq_size), dtype=torch.long)
+    )
+    ret = (a // chunk_size) <= (b // chunk_size)
+    return ret.unsqueeze(0)

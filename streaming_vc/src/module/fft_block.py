@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from src.module.causal_conv1d import CausalConv1d
-from src.module.mask import chunk_mask, length_mask
+from src.module.mask import chunk_mask
 from src.module.multi_head_attention import MultiHeadAttention
 from src.module.positional_encoding import PositionalEncoding
 
@@ -26,30 +26,26 @@ class FFTBlock(nn.Module):
 
         # 入力のembedding
         self.embed = nn.Sequential(
-            nn.Linear(input_feature_size, 512),
-            nn.LayerNorm(512),
+            nn.Linear(input_feature_size, decoder_feature_size),
+            nn.LayerNorm(decoder_feature_size),
             nn.Dropout(0.1),
             nn.ReLU(),
-            PositionalEncoding(512),
+            PositionalEncoding(decoder_feature_size),
         )
 
         # attention
         self.attention = MultiHeadAttention(
             4,
-            512,
-            512,
-            512,
-            512,
+            decoder_feature_size,
+            decoder_feature_size,
+            decoder_feature_size,
+            decoder_feature_size,
         )
-        self.norm1 = nn.LayerNorm(512)
+        self.norm1 = nn.LayerNorm(decoder_feature_size)
 
         # conv1d
-        self.conv = CausalConv1d(512, 512, 3)
-        self.relu = nn.ReLU()
-        self.norm2 = nn.LayerNorm(512)
-
-        # linear
-        self.linear = nn.Linear(512, 80)
+        self.conv = CausalConv1d(decoder_feature_size, decoder_feature_size, 3)
+        self.norm2 = nn.LayerNorm(decoder_feature_size)
 
     def forward(self, input_features: torch.Tensor) -> torch.Tensor:
         """
@@ -60,7 +56,6 @@ class FFTBlock(nn.Module):
             xs: Tensor (batch, seq_length, decoder_feature_size)
                 出力の特徴量
         """
-        batch_size = input_features.shape[0]
         seq_length = input_features.shape[1]
 
         # チャンクの先読みを封じるマスクを作る
@@ -78,7 +73,7 @@ class FFTBlock(nn.Module):
 
         # feed forwardの計算
         residual = xs
-        xs = residual + self.relu(self.conv(xs.transpose(1, 2)).transpose(1, 2))
+        xs = residual + self.conv(xs.transpose(1, 2)).transpose(1, 2)
         xs = self.norm2(xs)
 
-        return self.linear(xs).transpose(1, 2)
+        return xs

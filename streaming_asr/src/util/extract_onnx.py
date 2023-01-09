@@ -41,8 +41,8 @@ def extract(ckpt_path: str):
     torch.onnx.export(
         encoder,
         (
-            torch.ones(1, 6, 240).to(dtype=torch.float),
-            torch.ones(1).to(dtype=torch.int64) * 6,
+            torch.ones(1, 8, 240).to(dtype=torch.float),
+            torch.ones(1).to(dtype=torch.int64) * 8,
         ),
         "output/onnx/encoder.orig.onnx",
         verbose=False,
