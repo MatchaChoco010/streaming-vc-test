@@ -1,17 +1,18 @@
+import argparse
 import os
 import sys
-import argparse
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.trainer.trainer import Trainer
 
 # default parameters
-batch_size: int = 32
+batch_size: int = 8
 max_step: int = 10000001
 progress_step: int = 10
-valid_step: int = 5000
+valid_step: int = 500
 exp_name: str | None = None
+
 
 def train(
     dataset_dir: str,
@@ -23,7 +24,7 @@ def train(
     max_step: int,
     progress_step: int,
     valid_step: int,
-    exp_name: str | None
+    exp_name: str | None,
 ):
     trainer = Trainer(
         dataset_dir=dataset_dir,
@@ -41,7 +42,7 @@ def train(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description = 'training')
+    parser = argparse.ArgumentParser(description="training")
     parser.add_argument("--dataset_dir", required=True)
     parser.add_argument("--testdata_dir", required=True)
     parser.add_argument("--feature_extractor_onnx_path", required=True)

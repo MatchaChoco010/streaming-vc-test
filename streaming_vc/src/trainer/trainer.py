@@ -13,7 +13,7 @@ from src.model.generator import Generator
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
-SEGMENT_SIZE = 8192
+SEGMENT_SIZE = 2048 * 256
 
 
 class Trainer:
@@ -60,7 +60,6 @@ class Trainer:
         self.log = SummaryWriter(self.log_dir)
 
         self.step = 0
-        self.n_epochs = 0
         self.start_time = datetime.now()
 
         self.best_error = 100.0
@@ -78,7 +77,7 @@ class Trainer:
 
         self.model = FFTBlock(512, 80).to(self.device)
 
-        self.vocoder = Generator().to(self.device)
+        self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
@@ -98,7 +97,6 @@ class Trainer:
         self.model.load_state_dict(ckpt["model"])
         self.optimizer.load_state_dict(ckpt["optimizer"])
         self.step = ckpt["step"]
-        self.n_epochs = ckpt["n_epochs"]
         self.best_error = ckpt["best_error"]
         print(f"Load checkpoint from {ckpt_path}")
 
@@ -111,7 +109,6 @@ class Trainer:
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "step": self.step,
-            "n_epochs": self.n_epochs,
             "best_error": self.best_error,
         }
         torch.save(save_dict, ckpt_path)
@@ -242,7 +239,6 @@ class Trainer:
             print(f"\t{k}")
         print("\n")
 
-        self.n_epochs = self.step // len(self.train_loader)
         self.start_time = datetime.now()
         self.optimizer.zero_grad()
 
@@ -269,7 +265,7 @@ class Trainer:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Epochs: {self.n_epochs}, Step: {self.step}] loss: {loss.item()}",
+                        f"[{current_time}][Step: {self.step}] loss: {loss.item()}",
                     )
                     ## mel error
                     mel_error = F.l1_loss(mel, mel_hat).item()
@@ -277,19 +273,18 @@ class Trainer:
                     self.log.add_scalar("train/loss", loss.item(), self.step)
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
 
+                # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
+                torch.cuda.empty_cache()
+
                 # バリデーションの実行
                 if self.step % self.valid_step == 0:
                     self.validate()
-
-                # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
-                torch.cuda.empty_cache()
 
                 # End of step
                 self.step += 1
                 if self.step > self.max_step:
                     break
 
-            self.n_epochs += 1
         self.log.close()
 
     def validate(self):
@@ -303,9 +298,14 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            mel_history_size = 128
+            mel_history_size = 32
 
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
+                current_time = self.get_time()
+                print(
+                    f"[{current_time}][Step: {self.step}] process test file: {filepath.name[:24]}"
+                )
+
                 y, sr = torchaudio.load(str(filepath))
                 y = torchaudio.transforms.Resample(sr, 24000)(y).squeeze(0)
                 y = y.to(device=self.device)
@@ -347,13 +347,21 @@ class Trainer:
                             :, :, -mel_history_size:
                         ]
 
-                    audio_hat = self.vocoder(mel_hat_history)[:, -256 * 6 :]
+                    audio_hat = self.vocoder(mel_hat_history)[:, :, -256 * 6 :]
                     audio_items.append(audio_hat)
+
+                    # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
+                    torch.cuda.empty_cache()
 
                 audio = torch.cat(audio_items, dim=-1)
 
+                current_time = self.get_time()
+                print(
+                    f"[{current_time}][Step: {self.step}] Finish convert test file: {filepath.name[:24]}"
+                )
+
                 self.log.add_audio(
-                    f"generated/audio/{filepath.name}", audio[0], self.step, 24000
+                    f"generated/audio/{filepath.name}", audio[-1], self.step, 24000
                 )
 
         # Resume training

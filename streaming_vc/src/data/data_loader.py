@@ -10,7 +10,7 @@ import torchaudio
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
 
-SEGMENT_SIZE = 8192
+SEGMENT_SIZE = 2048 * 256
 
 
 class VCDataset(Dataset):
