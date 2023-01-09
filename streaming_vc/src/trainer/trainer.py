@@ -13,7 +13,7 @@ from src.model.generator import Generator
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
-SEGMENT_SIZE = 2048 * 256
+SEGMENT_SIZE = 6 * 256 * 32
 
 
 class Trainer:
@@ -363,6 +363,9 @@ class Trainer:
                 self.log.add_audio(
                     f"generated/audio/{filepath.name}", audio[-1], self.step, 24000
                 )
+
+        # save ckpt
+        self.save_ckpt()
 
         # Resume training
         self.model.train()

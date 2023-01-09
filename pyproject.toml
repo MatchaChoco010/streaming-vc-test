@@ -17,6 +17,7 @@ onnxruntime-gpu = "^1.13.1"
 PySoundFile = "^0.9.0.post1"
 tensorboard = "^2.11.0"
 onnx-graphsurgeon = {version = "^0.3.25", source = "nvidia"}
+pydub = "^0.25.1"
 
 [tool.poetry.dependencies.convmelspec]
 git = "https://github.com/adobe-research/convmelspec"
