@@ -1,6 +1,7 @@
 import os
 
 import onnx
+import onnx_graphsurgeon as gs
 import torch
 from onnxsim import simplify
 from src.model.asr import ASR
@@ -20,33 +21,61 @@ def extract(ckpt_path: str):
     feature_extractor.melspec.set_mode("DFT", "store")
     torch.onnx.export(
         feature_extractor,
-        (torch.zeros(1, 24000 * 64 // 1000), torch.ones(1) * 24000 * 64 // 1000),
+        (
+            torch.zeros(1, 24000 * 64 // 1000).to(dtype=torch.float),
+            torch.ones(1).to(dtype=torch.int64) * 24000 * 64 // 1000,
+        ),
         "output/onnx/feature_extractor.orig.onnx",
         verbose=False,
-        input_names=["input"],
+        export_params=True,
+        do_constant_folding=True,
+        input_names=["input", "input_length"],
         output_names=["output"],
-        opset_version=13,
-        operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+        opset_version=17,
+        dynamic_axes={
+            "input": {0: "batch_size", 1: "seq_len"},
+            "input_length": {0: "batch_size"},
+            "output": {0: "batchsize", 1: "seq_len"},
+        },
     )
     torch.onnx.export(
         encoder,
-        (torch.ones(1, 6, 240), torch.ones(1) * 6),
+        (
+            torch.ones(1, 6, 240).to(dtype=torch.float),
+            torch.ones(1).to(dtype=torch.int64) * 6,
+        ),
         "output/onnx/encoder.orig.onnx",
         verbose=False,
-        input_names=["input"],
+        export_params=True,
+        do_constant_folding=True,
+        input_names=["input", "input_length"],
         output_names=["output"],
-        opset_version=13,
-        operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+        opset_version=17,
         dynamic_axes={
-            "input": {1: "seq_len"},
-            "output": {1: "seq_len"},
+            "input": {0: "batch_size", 1: "seq_len"},
+            "input_length": {0: "batch_size"},
+            "output": {0: "batch_size", 1: "seq_len"},
         },
     )
 
     fe = onnx.load("output/onnx/feature_extractor.orig.onnx")
-    fe, _ = simplify(fe)
+    fe = gs.import_onnx(fe)
+    fe.cleanup()
+    fe = gs.export_onnx(fe, do_type_check=True)
     onnx.save(fe, "output/onnx/feature_extractor.onnx")
 
     enc = onnx.load("output/onnx/encoder.orig.onnx")
-    # enc, _ = simplify(enc)
+    enc = gs.import_onnx(enc)
+    enc.cleanup()
+    enc = gs.export_onnx(enc, do_type_check=True)
     onnx.save(enc, "output/onnx/encoder.onnx")
+
+    for _ in range(5):
+        fe = onnx.load("output/onnx/feature_extractor.onnx")
+        enc = onnx.load("output/onnx/encoder.onnx")
+
+        fe, _ = simplify(fe)
+        enc, _ = simplify(enc, skip_constant_folding=True)
+
+        onnx.save(fe, "output/onnx/feature_extractor.onnx")
+        onnx.save(enc, "output/onnx/encoder.onnx")

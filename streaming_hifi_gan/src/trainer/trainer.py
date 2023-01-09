@@ -113,21 +113,37 @@ class Trainer:
         """
         if best:
             ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-best.pt")
+            save_dict = {
+                "generator": self.generator.state_dict(),
+                "mpd": self.mpd.state_dict(),
+                "msd": self.msd.state_dict(),
+                "optimizer_g": self.optimizer_g.state_dict(),
+                "optimizer_d": self.optimizer_d.state_dict(),
+                "scheduler_g": self.scheduler_g.state_dict(),
+                "scheduler_d": self.scheduler_d.state_dict(),
+                "step": self.step,
+                "n_epochs": self.n_epochs,
+                "best_val_error": self.best_val_error,
+            }
+            torch.save(save_dict, ckpt_path)
         else:
             ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
-        save_dict = {
-            "generator": self.generator.state_dict(),
-            "mpd": self.mpd.state_dict(),
-            "msd": self.msd.state_dict(),
-            "optimizer_g": self.optimizer_g.state_dict(),
-            "optimizer_d": self.optimizer_d.state_dict(),
-            "scheduler_g": self.scheduler_g.state_dict(),
-            "scheduler_d": self.scheduler_d.state_dict(),
-            "step": self.step,
-            "n_epochs": self.n_epochs,
-            "best_val_error": self.best_val_error,
-        }
-        torch.save(save_dict, ckpt_path)
+            save_dict = {
+                "generator": self.generator.state_dict(),
+                "mpd": self.mpd.state_dict(),
+                "msd": self.msd.state_dict(),
+                "optimizer_g": self.optimizer_g.state_dict(),
+                "optimizer_d": self.optimizer_d.state_dict(),
+                "scheduler_g": self.scheduler_g.state_dict(),
+                "scheduler_d": self.scheduler_d.state_dict(),
+                "step": self.step,
+                "n_epochs": self.n_epochs,
+                "best_val_error": self.best_val_error,
+            }
+            torch.save(save_dict, ckpt_path)
+
+            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
+            torch.save(save_dict, ckpt_path)
 
     def get_time(self) -> str:
         """
@@ -159,14 +175,16 @@ class Trainer:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
                 mel = torch.autograd.Variable(mel.to(device=self.device))
 
-                audio_g_hat = self.generator(mel)[:, :, :SEGMENT_SIZE]
+                audio_g_hat = self.generator(mel)
                 mel_g_hat = torchaudio.transforms.MelSpectrogram(
                     n_fft=1024,
                     n_mels=80,
                     sample_rate=24000,
                     hop_length=256,
                     win_length=1024,
-                ).to(device=self.device)(audio_g_hat.squeeze(1))
+                ).to(device=self.device)(audio_g_hat.squeeze(1))[
+                    :, :, : SEGMENT_SIZE // 256
+                ]
                 mel_g_hat = log_melspectrogram(mel_g_hat)
 
                 self.optimizer_d.zero_grad()
@@ -259,7 +277,9 @@ class Trainer:
                     sample_rate=24000,
                     hop_length=256,
                     win_length=1024,
-                ).to(device=self.device)(audio_g_hat.squeeze(1))
+                ).to(device=self.device)(audio_g_hat.squeeze(1))[
+                    :, :, : SEGMENT_SIZE // 256
+                ]
                 mel_g_hat = log_melspectrogram(mel_g_hat)
                 val_err_tot += F.l1_loss(mel, mel_g_hat).item()
 

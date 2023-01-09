@@ -1,3 +1,4 @@
+import pathlib
 import pickle
 import random
 from functools import partial
@@ -6,11 +7,32 @@ from typing import List, Tuple
 import torch
 import torch.nn.functional as F
 import torchaudio
-from src.data.ljspeech_dataset import LJSpeechDataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
 
 SEGMENT_SIZE = 8192
+
+
+class VCDataset(Dataset):
+    """
+    VC訓練用のデータセットを扱うクラス
+    """
+
+    def __init__(self, dataset_dir: str):
+        """
+        Arguments:
+            dataset_dir: str
+                データセットの入っているティでクトリ
+        """
+        self.file_list = [
+            str(item) for item in pathlib.Path(dataset_dir).rglob("*.flac")
+        ]
+
+    def __getitem__(self, index) -> str:
+        return self.file_list[index]
+
+    def __len__(self) -> int:
+        return len(self.file_list)
 
 
 def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -53,47 +75,39 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
             audio_list.append(audio)
             mel_list.append(mel)
 
-        audio = torch.stack(audio_list, dim=0).squeeze(0)
+        audio = torch.stack(audio_list, dim=0).squeeze(1)
         mel = torch.stack(mel_list, dim=0).squeeze()
 
     return audio, mel
 
 
 def load_dataset(
+    dataset_dir: str,
     batch_size: int,
-) -> Tuple[DataLoader, DataLoader]:
+) -> DataLoader:
     """
     DataLoaderを作成する関数
 
     Arguments:
+        dataset_dir: str
+            データセットのディレクトリ
         batch_size: int
             バッチサイズ
     Returns:
-        (data_loader, validation_loader): Tuple[DataLoader, DataLoader]
+        data_loader: DataLoader
 
         data_loader: DataLoader
             学習用のデータセットのローダー
-        validation_loader: DataLoader
-            学習用のデータセットのローダー
     """
     collect_data_fn = partial(collect_audio_batch)
-    collect_validation_fn = partial(collect_audio_batch)
 
     data_loader = DataLoader(
-        LJSpeechDataset(train=True),
+        VCDataset(dataset_dir),
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         drop_last=False,
         collate_fn=collect_data_fn,
         pin_memory=True,
     )
-    validation_loader = DataLoader(
-        LJSpeechDataset(train=False),
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-        collate_fn=collect_validation_fn,
-        pin_memory=True,
-    )
 
-    return data_loader, validation_loader
+    return data_loader

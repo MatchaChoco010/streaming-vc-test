@@ -65,9 +65,9 @@ class MultiHeadAttention(nn.Module):
                 valueの特徴量
         """
         batch_size = query.shape[0]
-        # query_length = query.shape[1]
-        # key_length = key.shape[1]
-        # value_length = value.shape[1]
+        query_length = query.shape[1]
+        key_length = key.shape[1]
+        value_length = value.shape[1]
 
         query = self.linear_query(query).view(batch_size, -1, self.h, self.d_k)
         key = self.linear_key(key).view(batch_size, -1, self.h, self.d_k)
@@ -75,9 +75,9 @@ class MultiHeadAttention(nn.Module):
         query = query.transpose(1, 2)
         key = key.transpose(1, 2)
         value = value.transpose(1, 2)
-        # assert query.shape == (batch_size, self.h, query_length, self.d_k)
-        # assert key.shape == (batch_size, self.h, key_length, self.d_k)
-        # assert value.shape == (batch_size, self.h, value_length, self.d_k)
+        assert query.shape == (batch_size, self.h, query_length, self.d_k)
+        assert key.shape == (batch_size, self.h, key_length, self.d_k)
+        assert value.shape == (batch_size, self.h, value_length, self.d_k)
 
         return query, key, value
 
@@ -98,7 +98,7 @@ class MultiHeadAttention(nn.Module):
             xs: torch.Tensor (batch_size, query_length, output_feature_size)
         """
         batch_size = value.shape[0]
-        # query_length = scores.shape[2]
+        query_length = scores.shape[2]
 
         # (batch_size, 1, query_length, key_value_length)
         mask = mask.unsqueeze(1).eq(0)
@@ -112,7 +112,7 @@ class MultiHeadAttention(nn.Module):
             .contiguous()
             .view(batch_size, -1, self.h * self.d_k)
         )
-        # assert xs.shape == (batch_size, query_length, self.output_feature_size)
+        assert xs.shape == (batch_size, query_length, self.output_feature_size)
 
         return self.linear_out(xs)
 
@@ -136,21 +136,21 @@ class MultiHeadAttention(nn.Module):
         Returns:
             xs: torch.Tensor (batch_size, query_length, output_feature_size)
         """
-        # batch_size = query.shape[0]
-        # query_length = query.shape[1]
-        # key_length = key.shape[1]
-        # value_length = value.shape[1]
-        # assert key_length == value_length
+        batch_size = query.shape[0]
+        query_length = query.shape[1]
+        key_length = key.shape[1]
+        value_length = value.shape[1]
+        assert key_length == value_length
 
         # query, key, valueのprojectionを行い、headで分割する
         query, key, value = self.forward_query_key_value(query, key, value)
 
         # Attentionのスコアを計算する
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.d_k)
-        # assert scores.shape == (batch_size, self.h, query_length, key_length)
+        assert scores.shape == (batch_size, self.h, query_length, key_length)
 
         # Attentionを計算する
         xs = self.forward_attention(value, scores, mask)
-        # assert xs.shape == (batch_size, query_length, self.output_feature_size)
+        assert xs.shape == (batch_size, query_length, self.output_feature_size)
 
         return xs

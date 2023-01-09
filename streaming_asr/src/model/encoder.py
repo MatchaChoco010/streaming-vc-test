@@ -56,8 +56,8 @@ class EncoderLayer(nn.Module):
             mask: torch.Tensor (batch_size, 1, seq_len)
                 出力の長さのマスク
         """
-        batch_size = xs.shape[0]
-        seq_length = xs.shape[1]
+        # batch_size = xs.shape[0]
+        # seq_length = xs.shape[1]
 
         # self attentionの計算
         residual = xs
@@ -69,8 +69,8 @@ class EncoderLayer(nn.Module):
         xs = self.norm2(xs)
         xs = residual + self.dropout2(self.feed_forward(xs))
 
-        assert xs.size() == (batch_size, seq_length, self.out_feature_dim)
-        assert mask.size() == (batch_size, seq_length, seq_length)
+        # assert xs.size() == (batch_size, seq_length, self.out_feature_dim)
+        # assert mask.size() == (batch_size, seq_length, seq_length)
 
         return xs, mask
 
@@ -101,7 +101,7 @@ class Encoder(nn.Module):
             PositionalEncoding(self.out_feature_dim),
         )
 
-        # Encoderのレイヤー
+        # # Encoderのレイヤー
         encoder_modules = []
         for _ in range(6):
             encoder_modules.append(EncoderLayer(feature_size=self.out_feature_dim))
@@ -127,7 +127,7 @@ class Encoder(nn.Module):
             output_length: Tensor (batch)
                 出力の各バッチの出力の長さのTensor
         """
-        batch_size = input_features.shape[0]
+        # batch_size = input_features.shape[0]
         seq_length = input_features.shape[1]
 
         # 入力の長さのマスクを作る
@@ -137,9 +137,7 @@ class Encoder(nn.Module):
             .to(torch.bool)
         )
         # チャンクの先読みを封じるマスクを作る
-        mask_chunk = chunk_mask(seq_length, CHUNK_SIZE).to(
-            input_features.device, torch.bool
-        )
+        mask_chunk = chunk_mask(seq_length, 6).to(input_features.device, torch.bool)
         # マスクを掛け合わせる
         mask = mask_len * mask_chunk
 
@@ -152,10 +150,10 @@ class Encoder(nn.Module):
 
         # Normalization
         xs = self.after_norm(xs)
-        assert xs.shape == (batch_size, seq_length, self.out_feature_dim)
+        # assert xs.shape == (batch_size, seq_length, self.out_feature_dim)
 
         # 出力の長さの計算
         output_lengths = mask_len.squeeze(1).sum(dim=1)
-        assert output_lengths.shape == (batch_size,)
+        # assert output_lengths.shape == (batch_size,)
 
         return xs, output_lengths

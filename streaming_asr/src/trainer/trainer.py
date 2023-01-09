@@ -137,16 +137,27 @@ class Trainer:
         """
         if best:
             ckpt_path = os.path.join(self.ckpt_dir, f"best-{best_task}.pt")
+            save_dict = {
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "step": self.step,
+                "n_epochs": self.n_epochs,
+                "best_cer": self.best_cer,
+            }
+            torch.save(save_dict, ckpt_path)
         else:
             ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
-        save_dict = {
-            "model": self.model.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
-            "step": self.step,
-            "n_epochs": self.n_epochs,
-            "best_cer": self.best_cer,
-        }
-        torch.save(save_dict, ckpt_path)
+            save_dict = {
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "step": self.step,
+                "n_epochs": self.n_epochs,
+                "best_cer": self.best_cer,
+            }
+            torch.save(save_dict, ckpt_path)
+
+            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
+            torch.save(save_dict, ckpt_path)
 
     def calc_error_rate(self, pred: torch.Tensor, truth: torch.Tensor) -> float:
         """

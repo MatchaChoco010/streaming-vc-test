@@ -21,7 +21,7 @@ def length_mask(lengths: torch.Tensor, max_len: int | None = None) -> torch.Tens
         else:
             raise ValueError(f"lengths.max() is not int: {m}")
     else:
-        # assert max_len >= lengths.max().item()
+        assert max_len >= lengths.max().item()
         max_length = max_len
 
     seq_range = torch.arange(0, max_length, dtype=torch.long)
@@ -31,7 +31,7 @@ def length_mask(lengths: torch.Tensor, max_len: int | None = None) -> torch.Tens
     )
     mask = seq_range < lengths_expand
 
-    # assert mask.shape == (batch_size, max_length)
+    assert mask.shape == (batch_size, max_length)
     return mask.unsqueeze(1)
 
 

@@ -12,9 +12,3 @@ poetry run python bin/prepare_dataset.py
 ```
 poetry run python bin/train.py
 ```
-
-## 3 onnxモデルの出力
-
-```
-poetry run python bin/export_ckpt.py
-```
