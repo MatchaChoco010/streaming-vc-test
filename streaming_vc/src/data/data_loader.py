@@ -25,7 +25,7 @@ class VCDataset(Dataset):
                 データセットの入っているティでクトリ
         """
         self.file_list = [
-            str(item) for item in pathlib.Path(dataset_dir).rglob("*.flac")
+            str(item) for item in pathlib.Path(dataset_dir).rglob("*.wav")
         ]
 
     def __getitem__(self, index) -> str:
