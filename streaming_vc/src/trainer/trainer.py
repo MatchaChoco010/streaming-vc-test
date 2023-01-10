@@ -82,12 +82,7 @@ class Trainer:
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.mse_loss = F.mse_loss
-        self.sc_loss = SpectralConvergengeLoss()
-
-        self.optimizer = optim.AdamW(
-            self.model.parameters(), lr=0.001, betas=(0.9, 0.99)
-        )
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0005)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -248,6 +243,8 @@ class Trainer:
         self.start_time = datetime.now()
         self.optimizer.zero_grad()
 
+        losses = []
+
         while self.step < self.max_step:
             for audio, mel in self.train_loader:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
@@ -259,7 +256,8 @@ class Trainer:
                 mel_hat = self.model(feature)
 
                 # calc loss
-                loss = self.mse_loss(mel, mel_hat) + self.sc_loss(mel, mel_hat)
+                loss = F.mse_loss(mel_hat, mel)
+                losses.append(loss.item())
 
                 # optimizer step
                 self.optimizer.zero_grad()
@@ -271,15 +269,20 @@ class Trainer:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Step: {self.step}] loss: {loss.item()}",
+                        f"[{current_time}][Step: {self.step}] loss: {sum(losses) / len(losses)}",
                     )
                     ## mel error
                     mel_error = F.l1_loss(mel, mel_hat).item()
                     ## tensorboard
-                    self.log.add_scalar("train/loss", loss.item(), self.step)
+                    self.log.add_scalar(
+                        "train/loss", sum(losses) / len(losses), self.step
+                    )
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
+                    # clear loss buffer
+                    losses = []
 
-                    if self.step % 5000 == 0:
+                    if self.step % 1000 == 0:
+                        # 適当にmelをremapして画像として保存
                         self.log.add_image(
                             "mel", (mel[0] + 15) / 30, self.step, dataformats="HW"
                         )

@@ -26,11 +26,11 @@ class FFTBlock(nn.Module):
 
         # 入力のembedding
         self.embed = nn.Sequential(
-            nn.Linear(input_feature_size, decoder_feature_size),
-            nn.LayerNorm(decoder_feature_size),
+            nn.Linear(input_feature_size, self.out_feature_dim),
+            nn.LayerNorm(self.out_feature_dim),
             nn.Dropout(0.1),
             nn.ReLU(),
-            PositionalEncoding(decoder_feature_size),
+            PositionalEncoding(self.out_feature_dim),
         )
 
         # attention
@@ -68,12 +68,12 @@ class FFTBlock(nn.Module):
 
         # self attentionの計算
         residual = xs
-        xs = residual + self.attention(xs, xs, xs, mask_chunk)
         xs = self.norm1(xs)
+        xs = residual + self.attention(xs, xs, xs, mask_chunk)
 
         # feed forwardの計算
         residual = xs
-        xs = residual + self.conv(xs.transpose(1, 2)).transpose(1, 2)
         xs = self.norm2(xs)
+        xs = residual + self.conv(xs.transpose(1, 2)).transpose(1, 2)
 
         return xs
