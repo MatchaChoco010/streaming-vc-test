@@ -41,14 +41,16 @@ class Generator(torch.nn.Module):
             #         )
             #     )
             # )
-            self.ups.append(Upsample(scale_factor=u))
             self.ups.append(
-                weight_norm(
-                    CausalConv1d(
-                        self.upsample_initial_channel // (2**i),
-                        self.upsample_initial_channel // (2 ** (i + 1)),
-                        k
-                    )
+                nn.Sequential(
+                    Upsample(scale_factor=u),
+                    weight_norm(
+                        CausalConv1d(
+                            self.upsample_initial_channel // (2**i),
+                            self.upsample_initial_channel // (2 ** (i + 1)),
+                            k,
+                        )
+                    ),
                 )
             )
 
