@@ -30,17 +30,6 @@ class Generator(torch.nn.Module):
         for i, (u, k) in enumerate(
             zip(self.upsample_rates, self.upsample_kernel_sizes)
         ):
-            # self.ups.append(
-            #     weight_norm(
-            #         ConvTranspose1d(
-            #             self.upsample_initial_channel // (2**i),
-            #             self.upsample_initial_channel // (2 ** (i + 1)),
-            #             k,
-            #             u,
-            #             padding=(k - u) // 2,
-            #         )
-            #     )
-            # )
             self.ups.append(
                 nn.Sequential(
                     Upsample(scale_factor=u),

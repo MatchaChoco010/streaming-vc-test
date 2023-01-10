@@ -298,7 +298,7 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            mel_history_size = 4
+            mel_history_size = 8
 
             for filepath in pathlib.Path("test_data").rglob("*.wav"):
                 y, sr = torchaudio.load(str(filepath))
