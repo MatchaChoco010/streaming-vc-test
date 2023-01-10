@@ -267,10 +267,8 @@ class Trainer:
         val_err_tot = 0.0
         with torch.no_grad():
             for audio, mel in self.validation_loader:
-                audio_g_hat = self.generator(mel.to(device=self.device))[
-                    :, :, :SEGMENT_SIZE
-                ]
                 mel = mel.to(device=self.device)
+                audio_g_hat = self.generator(mel)[:, :, :SEGMENT_SIZE]
                 mel_g_hat = torchaudio.transforms.MelSpectrogram(
                     n_fft=1024,
                     n_mels=80,
@@ -289,7 +287,7 @@ class Trainer:
         # 現在のckptをlatestとして保存
         self.save_ckpt()
 
-        # それぞれの指標で良くなっていたら保存
+        # 指標が良くなっていたら保存
         if val_err < self.best_val_error:
             self.best_val_error = val_err
             self.save_ckpt(best=True)
@@ -310,10 +308,10 @@ class Trainer:
                     win_length=1024,
                 ).to(device=self.device)(y)
                 mel = log_melspectrogram(mel)
-                audio_items = []
 
                 # melを6sampleずつずらしながらhistory_sizeも加えて食わせることで
                 # streamingで生成する
+                audio_items = []
                 for i in range(0, mel.shape[2] // 6):
                     mel_item = mel[:, :, max(0, i * 6 - mel_history_size) : (i + 1) * 6]
                     audio_item = self.generator(mel_item).squeeze(0).squeeze(0)
