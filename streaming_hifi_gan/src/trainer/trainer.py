@@ -286,8 +286,6 @@ class Trainer:
             val_err = val_err_tot / len(self.validation_loader)
             self.log.add_scalar("validation/mel_spec_error", val_err, self.step)
 
-        self.generator.train()
-
         # 現在のckptをlatestとして保存
         self.save_ckpt()
 
@@ -298,11 +296,12 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            mel_history_size = 8
+            mel_history_size = 16
 
             for filepath in pathlib.Path("test_data").rglob("*.wav"):
                 y, sr = torchaudio.load(str(filepath))
-                y = torchaudio.transforms.Resample(sr, 24000)(y).to(device=self.device)
+                y = y.to(device=self.device)
+                y = torchaudio.transforms.Resample(sr, 24000).to(device=self.device)(y)
                 mel = torchaudio.transforms.MelSpectrogram(
                     n_fft=1024,
                     n_mels=80,
