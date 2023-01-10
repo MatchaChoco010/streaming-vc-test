@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -9,14 +10,16 @@ batch_size: int = 16
 max_step: int = 10000001
 progress_step: int = 5
 valid_step: int = 1000
-exp_name: str | None = None
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="training")
+    parser.add_argument("--exp_name", default=None)
+    args = parser.parse_args()
     trainer = Trainer(
         batch_size=batch_size,
         max_step=max_step,
         progress_step=progress_step,
         valid_step=valid_step,
-        exp_name=exp_name,
+        exp_name=args.exp_name,
     )
     trainer.run()

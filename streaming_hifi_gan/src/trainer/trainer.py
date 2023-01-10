@@ -298,7 +298,7 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            mel_history_size = 128
+            mel_history_size = 4
 
             for filepath in pathlib.Path("test_data").rglob("*.wav"):
                 y, sr = torchaudio.load(str(filepath))
@@ -313,7 +313,7 @@ class Trainer:
                 mel = log_melspectrogram(mel)
                 audio_items = []
 
-                # melを6sampleずつずらしながらhistory_sizeだけ食わせることで
+                # melを6sampleずつずらしながらhistory_sizeも加えて食わせることで
                 # streamingで生成する
                 for i in range(0, mel.shape[2] // 6):
                     mel_item = mel[:, :, max(0, i * 6 - mel_history_size) : (i + 1) * 6]
