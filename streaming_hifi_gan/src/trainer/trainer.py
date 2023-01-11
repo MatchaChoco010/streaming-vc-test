@@ -30,6 +30,7 @@ class Trainer:
         progress_step: int = 5,
         valid_step: int = 1000,
         exp_name: str | None = None,
+        output_dir: str = "output",
     ):
         """
         Arguments:
@@ -48,10 +49,10 @@ class Trainer:
             else f"exp-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         )
 
-        self.ckpt_dir = os.path.join("output/ckpt", self.exp_name)
+        self.ckpt_dir = os.path.join(output_dir, "ckpt", self.exp_name)
         os.makedirs(self.ckpt_dir, exist_ok=True)
 
-        self.log_dir = os.path.join("output/log", self.exp_name)
+        self.log_dir = os.path.join(output_dir, "log", self.exp_name)
         self.log = SummaryWriter(self.log_dir)
 
         self.step = 0
