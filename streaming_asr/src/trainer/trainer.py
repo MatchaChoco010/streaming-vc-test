@@ -250,6 +250,10 @@ class Trainer:
         self.start_time = datetime.now()
         self.optimizer.zero_grad()
 
+        ctc_losses = []
+        att_losses = []
+        total_losses = []
+
         while self.step < self.max_step:
             # Gradient Accumulationを行う
             for data in self.train_loader:
@@ -272,15 +276,18 @@ class Trainer:
                     encode_len,
                     text_len,
                 )
+                ctc_losses.append(ctc_loss.item())
 
                 b, t, _ = att_output.shape
                 att_loss = self.seq_loss(
                     att_output.view(b * t, -1), text.argmax(dim=-1).view(-1)
                 )
+                att_losses.append(att_loss.item())
 
                 total_loss = ctc_loss * self.ctc_weight + att_loss * (
                     1 - self.ctc_weight
                 )
+                total_losses.append(total_loss.item())
 
                 loss = total_loss / self.accumulation_steps
                 loss.backward()
@@ -293,6 +300,10 @@ class Trainer:
 
                 # ロギング
                 if self.step % self.progress_step == 0:
+                    # calculate mean of losses in progress steps
+                    ctc_loss = sum(ctc_losses) / len(ctc_losses)
+                    att_loss = sum(att_losses) / len(att_losses)
+                    total_loss = sum(total_losses) / len(total_losses)
                     ## console
                     gt_text = self.tokenizer.decode(text[0].argmax(dim=-1).tolist())
                     ctc_text = self.tokenizer.decode(
@@ -302,7 +313,7 @@ class Trainer:
                         att_output[0].argmax(dim=-1).tolist()
                     )
                     self.progress(
-                        f"CTC Loss: {ctc_loss.item():.3f}, ATT Loss: {att_loss.item():.3f}, Total Loss: {total_loss.item():.3f}",
+                        f"CTC Loss: {ctc_loss:.3f}, ATT Loss: {att_loss:.3f}, Total Loss: {total_loss:.3f}",
                         gt_text,
                         ctc_text,
                         att_text,
@@ -312,13 +323,15 @@ class Trainer:
                     cer_ctc = self.calc_error_rate(ctc_output, text)
                     cer_att = self.calc_error_rate(att_output, text)
                     ## tensorboard
-                    self.log.add_scalar("train/loss/ctc", ctc_loss.item(), self.step)
-                    self.log.add_scalar("train/loss/att", att_loss.item(), self.step)
-                    self.log.add_scalar(
-                        "train/loss/total", total_loss.item(), self.step
-                    )
+                    self.log.add_scalar("train/loss/ctc", ctc_loss, self.step)
+                    self.log.add_scalar("train/loss/att", att_loss, self.step)
+                    self.log.add_scalar("train/loss/total", total_loss, self.step)
                     self.log.add_scalar("train/cer/ctc", cer_ctc, self.step)
                     self.log.add_scalar("train/cer/att", cer_att, self.step)
+                    # reset losses
+                    ctc_losses = []
+                    att_losses = []
+                    total_losses = []
 
                 # バリデーションの実行
                 if self.step % self.valid_step == 0:
