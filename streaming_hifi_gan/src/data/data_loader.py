@@ -1,4 +1,3 @@
-import pickle
 import random
 from functools import partial
 from typing import List, Tuple
@@ -33,7 +32,18 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
         audio_list, mel_list = [], []
 
         for audio_filename in batch:
-            audio, _ = torchaudio.load(audio_filename)
+            audio, sr = torchaudio.load(audio_filename)
+
+            # スピードを0.3倍から2.0倍までの範囲でランダムに引き伸ばす
+            speed = random.uniform(0.3, 2.0)
+            audio, _ = torchaudio.sox_effects.apply_effects_tensor(
+                audio,
+                sr,
+                [
+                    ["speed", f"{speed}"],
+                    ["rate", "24000"],
+                ],
+            )
 
             if audio.shape[1] < SEGMENT_SIZE:
                 audio = F.pad(audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant")

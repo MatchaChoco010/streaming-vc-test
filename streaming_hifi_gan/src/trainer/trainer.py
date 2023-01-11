@@ -142,9 +142,6 @@ class Trainer:
             }
             torch.save(save_dict, ckpt_path)
 
-            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
-            torch.save(save_dict, ckpt_path)
-
     def get_time(self) -> str:
         """
         スタート時からの経過時刻をフォーマットした文字列を返す
@@ -294,6 +291,14 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
+
+            if self.step == 0:
+                # GTをtensorboardに記録する
+                for filepath in pathlib.Path("test_data").rglob("*.wav"):
+                    y, sr = torchaudio.load(str(filepath))
+                    y = torchaudio.transforms.Resample(sr, 24000)(y)
+                    self.log.add_audio(f"gt/audio/{filepath.name}", y, self.step, 24000)
+
             mel_history_size = 16
 
             for filepath in pathlib.Path("test_data").rglob("*.wav"):
@@ -309,6 +314,8 @@ class Trainer:
                 ).to(device=self.device)(y)
                 mel = log_melspectrogram(mel)
 
+                start_time = datetime.now()
+
                 # melを6sampleずつずらしながらhistory_sizeも加えて食わせることで
                 # streamingで生成する
                 audio_items = []
@@ -323,6 +330,11 @@ class Trainer:
                 self.log.add_audio(
                     f"generated/audio/{filepath.name}", audio[0], self.step, 24000
                 )
+
+                seconds = (datetime.now() - start_time).total_seconds()
+                minutes = seconds // 60
+                seconds = seconds - (minutes * 60)
+                print(f"  {filepath.name[:24]} took {minutes}m{seconds}s to convert...")
 
         # Resume training
         self.generator.train()
