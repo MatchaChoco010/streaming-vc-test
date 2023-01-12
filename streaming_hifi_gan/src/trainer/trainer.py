@@ -145,10 +145,7 @@ class Trainer:
                 "best_val_error": self.best_val_error,
             }
             torch.save(save_dict, ckpt_path)
-
-            with open(ckpt_path, mode="rb") as r:
-                with open(latest_path, mode="wb") as w:
-                    w.write(r.read())
+            torch.save(save_dict, latest_path)
 
     def get_time(self) -> str:
         """
