@@ -1,6 +1,7 @@
 import itertools
 import os
 import pathlib
+import shutil
 from datetime import datetime
 
 import torch
@@ -129,6 +130,7 @@ class Trainer:
             torch.save(save_dict, ckpt_path)
         else:
             ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
+            latest_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
             save_dict = {
                 "generator": self.generator.state_dict(),
                 "mpd": self.mpd.state_dict(),
@@ -142,6 +144,7 @@ class Trainer:
                 "best_val_error": self.best_val_error,
             }
             torch.save(save_dict, ckpt_path)
+            shutil.copyfile(ckpt_path, latest_path)
 
     def get_time(self) -> str:
         """
