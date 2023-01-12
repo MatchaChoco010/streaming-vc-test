@@ -1,9 +1,8 @@
 import pathlib
 from typing import List, Tuple
 
-from joblib import Parallel, delayed
-from torch.utils.data import Dataset
 from src.module.text_encoder import TextEncoder
+from torch.utils.data import Dataset
 
 READ_FILE_THREADS = 4
 
@@ -44,9 +43,7 @@ class LibriDataset(Dataset):
             split_list = list((pathlib.Path(self.path) / s).rglob("*.flac"))
             file_list += split_list
 
-        text = Parallel(n_jobs=READ_FILE_THREADS)(
-            delayed(read_text)(str(f)) for f in file_list
-        )
+        text = [read_text(str(f)) for f in file_list]
         text = [text_encoder.encode(txt) for txt in text]
 
         # データセットを長さの降順にソート
