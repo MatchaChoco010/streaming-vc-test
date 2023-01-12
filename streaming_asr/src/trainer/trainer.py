@@ -254,6 +254,8 @@ class Trainer:
         ctc_losses = []
         att_losses = []
         total_losses = []
+        ctc_cers = []
+        att_cers = []
 
         while self.step < self.max_step:
             # Gradient Accumulationを行う
@@ -294,6 +296,10 @@ class Trainer:
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 4)
 
+                # cerの計算
+                ctc_cers.append(self.calc_error_rate(ctc_output, text))
+                att_cers.append(self.calc_error_rate(att_output, text))
+
                 # optimizer
                 if self.step % self.accumulation_steps == self.accumulation_steps - 1:
                     self.optimizer.step()
@@ -301,10 +307,12 @@ class Trainer:
 
                 # ロギング
                 if self.step % self.progress_step == 0:
-                    # calculate mean of losses in progress steps
+                    # calculate mean of losses and cers in progress steps
                     ctc_loss = sum(ctc_losses) / len(ctc_losses)
                     att_loss = sum(att_losses) / len(att_losses)
                     total_loss = sum(total_losses) / len(total_losses)
+                    cer_ctc = sum(ctc_cers) / len(ctc_cers)
+                    cer_att = sum(att_cers) / len(att_cers)
                     ## console
                     gt_text = self.tokenizer.decode(text[0].argmax(dim=-1).tolist())
                     ctc_text = self.tokenizer.decode(
@@ -320,9 +328,6 @@ class Trainer:
                         att_text,
                         overwrite=False,
                     )
-                    # cerの計算
-                    cer_ctc = self.calc_error_rate(ctc_output, text)
-                    cer_att = self.calc_error_rate(att_output, text)
                     ## tensorboard
                     self.log.add_scalar("train/loss/ctc", ctc_loss, self.step)
                     self.log.add_scalar("train/loss/att", att_loss, self.step)
