@@ -146,8 +146,8 @@ class Trainer:
             }
             torch.save(save_dict, ckpt_path)
 
-            with open(ckpt_path, mode="r") as r:
-                with open(latest_path, mode="w") as w:
+            with open(ckpt_path, mode="rb") as r:
+                with open(latest_path, mode="wb") as w:
                     w.write(r.read())
 
     def get_time(self) -> str:
