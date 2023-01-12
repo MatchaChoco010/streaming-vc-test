@@ -13,8 +13,8 @@ from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
+from tensorboard import SummaryWriter
 from torch import optim
-from torch.utils.tensorboard import SummaryWriter
 
 SEGMENT_SIZE = 8192
 
