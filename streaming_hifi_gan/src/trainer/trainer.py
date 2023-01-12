@@ -342,7 +342,9 @@ class Trainer:
                 seconds = (datetime.now() - start_time).total_seconds()
                 minutes = seconds // 60
                 seconds = seconds - (minutes * 60)
-                print(f"  {filepath.name[:24]} took {minutes}m{seconds}s to convert...")
+                print(
+                    f"  {filepath.name[:24]} took {int(minutes)}m{seconds}s to convert..."
+                )
 
         # Resume training
         self.generator.train()
