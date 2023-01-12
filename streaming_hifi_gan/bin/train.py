@@ -14,7 +14,8 @@ valid_step: int = 1000
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="training")
     parser.add_argument("--exp_name", default=None)
-    parser.add_argument("--output_dir", default="output")
+    parser.add_argument("--ckpt_dir", default="output/ckpt")
+    parser.add_argument("--log_dir", default="output/log")
     args = parser.parse_args()
     trainer = Trainer(
         batch_size=batch_size,
@@ -22,6 +23,7 @@ if __name__ == "__main__":
         progress_step=progress_step,
         valid_step=valid_step,
         exp_name=args.exp_name,
-        output_dir=args.output_dir,
+        ckpt_dir=args.ckpt_dir,
+        log_dir=args.log_dir,
     )
     trainer.run()

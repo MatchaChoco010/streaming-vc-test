@@ -13,8 +13,8 @@ from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
-from tensorboard import SummaryWriter
 from torch import optim
+from torch.utils.tensorboard import SummaryWriter
 
 SEGMENT_SIZE = 8192
 
@@ -31,7 +31,8 @@ class Trainer:
         progress_step: int = 5,
         valid_step: int = 1000,
         exp_name: str | None = None,
-        output_dir: str = "output",
+        ckpt_dir: str = "output/ckpt",
+        log_dir: str = "output/log",
     ):
         """
         Arguments:
@@ -50,10 +51,10 @@ class Trainer:
             else f"exp-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         )
 
-        self.ckpt_dir = os.path.join(output_dir, "ckpt", self.exp_name)
+        self.ckpt_dir = os.path.join(ckpt_dir, self.exp_name)
         os.makedirs(self.ckpt_dir, exist_ok=True)
 
-        self.log_dir = os.path.join(output_dir, "log", self.exp_name)
+        self.log_dir = os.path.join(log_dir, self.exp_name)
         self.log = SummaryWriter(self.log_dir)
 
         self.step = 0
