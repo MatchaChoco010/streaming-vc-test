@@ -283,7 +283,7 @@ class Trainer:
                 val_err_tot += F.l1_loss(mel, mel_g_hat).item()
 
             val_err = val_err_tot / len(self.validation_loader)
-            self.log.add_scalar("validation/mel_spec_error", val_err.item(), self.step)
+            self.log.add_scalar("validation/mel_spec_error", val_err, self.step)
 
         # 現在のckptをlatestとして保存
         self.save_ckpt()
