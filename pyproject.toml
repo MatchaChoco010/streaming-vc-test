@@ -19,6 +19,8 @@ tensorboard = "^2.11.0"
 onnx-graphsurgeon = {version = "^0.3.25", source = "nvidia"}
 pydub = "^0.25.1"
 pillow = "^9.4.0"
+boto3 = "^1.26.48"
+tensorflow-io = "^0.29.0"
 
 [tool.poetry.dependencies.convmelspec]
 git = "https://github.com/adobe-research/convmelspec"

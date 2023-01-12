@@ -71,6 +71,46 @@ jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
+name = "boto3"
+version = "1.26.48"
+description = "The AWS SDK for Python"
+category = "main"
+optional = false
+python-versions = ">= 3.7"
+files = [
+    {file = "boto3-1.26.48-py3-none-any.whl", hash = "sha256:a23fe87e9bafca736620dd9d7e5977eeaaa27c3abf5800f7d8b7b7d08b4ad736"},
+    {file = "boto3-1.26.48.tar.gz", hash = "sha256:8aa3fd453a815240b85c01190ed0d9924622a1a061c93423b1443379eadd3c43"},
+]
+
+[package.dependencies]
+botocore = ">=1.29.48,<1.30.0"
+jmespath = ">=0.7.1,<2.0.0"
+s3transfer = ">=0.6.0,<0.7.0"
+
+[package.extras]
+crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
+
+[[package]]
+name = "botocore"
+version = "1.29.48"
+description = "Low-level, data-driven core of boto 3."
+category = "main"
+optional = false
+python-versions = ">= 3.7"
+files = [
+    {file = "botocore-1.29.48-py3-none-any.whl", hash = "sha256:17eeb963b3ae4a3ea4a972bdf78c9925c3efd9e2232875bfc19043640d3dac14"},
+    {file = "botocore-1.29.48.tar.gz", hash = "sha256:c5f57c1f694e67c29c870426c0a7ebffce90099e794025e3d283db7f1ad7a65b"},
+]
+
+[package.dependencies]
+jmespath = ">=0.7.1,<2.0.0"
+python-dateutil = ">=2.1,<3.0.0"
+urllib3 = ">=1.25.4,<1.27"
+
+[package.extras]
+crt = ["awscrt (==0.15.3)"]
+
+[[package]]
 name = "cachetools"
 version = "5.2.1"
 description = "Extensible memoizing collections and decorators"
@@ -524,6 +564,18 @@ files = [
 
 [package.dependencies]
 levenshtein = "0.20.2"
+
+[[package]]
+name = "jmespath"
+version = "1.0.1"
+description = "JSON Matching Expressions"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980"},
+    {file = "jmespath-1.0.1.tar.gz", hash = "sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe"},
+]
 
 [[package]]
 name = "joblib"
@@ -1444,6 +1496,21 @@ cffi = ">=0.6"
 numpy = ["numpy"]
 
 [[package]]
+name = "python-dateutil"
+version = "2.8.2"
+description = "Extensions to the standard Python datetime module"
+category = "main"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
+files = [
+    {file = "python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},
+    {file = "python_dateutil-2.8.2-py2.py3-none-any.whl", hash = "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9"},
+]
+
+[package.dependencies]
+six = ">=1.5"
+
+[[package]]
 name = "rapidfuzz"
 version = "2.13.7"
 description = "rapid fuzzy string matching"
@@ -1640,6 +1707,24 @@ files = [
 
 [package.dependencies]
 pyasn1 = ">=0.1.3"
+
+[[package]]
+name = "s3transfer"
+version = "0.6.0"
+description = "An Amazon S3 Transfer Manager"
+category = "main"
+optional = false
+python-versions = ">= 3.7"
+files = [
+    {file = "s3transfer-0.6.0-py3-none-any.whl", hash = "sha256:06176b74f3a15f61f1b4f25a1fc29a4429040b7647133a463da8fa5bd28d5ecd"},
+    {file = "s3transfer-0.6.0.tar.gz", hash = "sha256:2ed07d3866f523cc561bf4a00fc5535827981b117dd7876f036b0c1aca42c947"},
+]
+
+[package.dependencies]
+botocore = ">=1.12.36,<2.0a.0"
+
+[package.extras]
+crt = ["botocore[crt] (>=1.20.29,<2.0a.0)"]
 
 [[package]]
 name = "scikit-learn"
@@ -1840,6 +1925,81 @@ files = [
 ]
 
 [[package]]
+name = "tensorflow-io"
+version = "0.29.0"
+description = "TensorFlow IO"
+category = "main"
+optional = false
+python-versions = ">=3.7, <3.12"
+files = [
+    {file = "tensorflow_io-0.29.0-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:aa0ecc32cd1eeacb313329f49dd6cabba4d42e74b3a1ab2e97c25d91e02fd1e6"},
+    {file = "tensorflow_io-0.29.0-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:c7170ef0f12cbe655fbba9b45df0e8d53c6730b323bd0a4252aaf6c9ed3c60fc"},
+    {file = "tensorflow_io-0.29.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8628c28d9ebcdce5c905179b167bace46db6ebc9454968e1347921123560973a"},
+    {file = "tensorflow_io-0.29.0-cp310-cp310-win_amd64.whl", hash = "sha256:26ef922beb4b72ebfe9d9ca87d8390b066a50028f6dc1605813fc781e2662001"},
+    {file = "tensorflow_io-0.29.0-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:d9b847d4185d7a329f9d8c72ff31ab57f7746f35323d000223524917bb612f4b"},
+    {file = "tensorflow_io-0.29.0-cp311-cp311-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:ea914865345e16ab51767a67e7d7000aaa0c1bdda5f0803273544f5627bd6f3b"},
+    {file = "tensorflow_io-0.29.0-cp311-cp311-win_amd64.whl", hash = "sha256:7b0064f640b8c06509139343bff52e5400fbd1a9aedb5b1149c49063c7038ad5"},
+    {file = "tensorflow_io-0.29.0-cp37-cp37m-macosx_10_14_x86_64.whl", hash = "sha256:cf7f93c98cf107d1c68edd702edd7f573cd72e2d3e5c88c2e5c7bc2ed039a749"},
+    {file = "tensorflow_io-0.29.0-cp37-cp37m-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:807b6ac26ef12963e95d78a37a9d521c3e93965d9eba13b493077ce072c554e3"},
+    {file = "tensorflow_io-0.29.0-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9eb8589f3bba4032da2f1f7a27f3812e7e2b7b1350dab6bf52a945e1137411d8"},
+    {file = "tensorflow_io-0.29.0-cp37-cp37m-win_amd64.whl", hash = "sha256:050bbaab654b91fb05930d69bf185330d6670a40efc1ad6100fb777142651641"},
+    {file = "tensorflow_io-0.29.0-cp38-cp38-macosx_10_14_x86_64.whl", hash = "sha256:cfee68e13fc69dca1a9be600fa1298885f74af487511041184b9f2b9bbcca4f9"},
+    {file = "tensorflow_io-0.29.0-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:1ab5791d2bef91b807c0dda2354a4aa44f233b5f6adc105fe4a45007c3a6d57a"},
+    {file = "tensorflow_io-0.29.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:74ddca5816e1bbe97aa7e2485b97b2d3a04a16bb835489a3fa3d00fd6d43527e"},
+    {file = "tensorflow_io-0.29.0-cp38-cp38-win_amd64.whl", hash = "sha256:6f8b04c8a9a9c1b49e065af69680c7de1265806cdc1fb09c851e7d56efb7eb2b"},
+    {file = "tensorflow_io-0.29.0-cp39-cp39-macosx_10_14_x86_64.whl", hash = "sha256:1a8b6a463cb80c4d63e6ee69f6e198a674516b34e8be466023610218fe50516e"},
+    {file = "tensorflow_io-0.29.0-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:1a9af0359f871741863b0eb8ac47472e13da4f710cadc20c6206e199b7efe887"},
+    {file = "tensorflow_io-0.29.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:021c7d3e2d0fe4d20f8939610d62087aac57ca7dfc6bb1ebad392eef88e41e0a"},
+    {file = "tensorflow_io-0.29.0-cp39-cp39-win_amd64.whl", hash = "sha256:55980d53a3f3904733144d9a85a3fa78ac7bfe4827ad29cd84b189c710bf20e9"},
+]
+
+[package.dependencies]
+tensorflow-io-gcs-filesystem = "0.29.0"
+
+[package.extras]
+tensorflow = ["tensorflow (>=2.11.0,<2.12.0)"]
+tensorflow-aarch64 = ["tensorflow-aarch64 (>=2.11.0,<2.12.0)"]
+tensorflow-cpu = ["tensorflow-cpu (>=2.11.0,<2.12.0)"]
+tensorflow-gpu = ["tensorflow-gpu (>=2.11.0,<2.12.0)"]
+tensorflow-rocm = ["tensorflow-rocm (>=2.11.0,<2.12.0)"]
+
+[[package]]
+name = "tensorflow-io-gcs-filesystem"
+version = "0.29.0"
+description = "TensorFlow IO"
+category = "main"
+optional = false
+python-versions = ">=3.7, <3.12"
+files = [
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:d8eb242b118721c8a23d598af69c25ad450c1e18bd1cd7ef7e8274ae0e7781ca"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:c826154e0c6bd9a1a0395a1b985976ac255a3d79d147d3eb10343b6d15710267"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9db8dc3f2c4ddfdf02f33a492600be35d0bca085aa12121a5feef173e6b5914e"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp310-cp310-win_amd64.whl", hash = "sha256:7ff4b18f1a74e1a56603fa204cf82b1af5b24ad18c579692c487b4fb4a2baec8"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:571fc6ba4960f3a749a362d487b60e248eb43f0abcfb0ace4f04ddb91ae04faf"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp311-cp311-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:a6297b68677a17ce388594fcf76c70718b837dba59e858280898521a858a8e4c"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp311-cp311-win_amd64.whl", hash = "sha256:ff107ac28d56bdd4c50ac69b18cc237d3a9342be8c2d11e458e19a0fac31fb9d"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp37-cp37m-macosx_10_14_x86_64.whl", hash = "sha256:6617054b8ac75cf2f19ec24ddf3a696a500758d1f755b847f3ba42aec6ad7b9e"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp37-cp37m-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:ec87a475a4024bc8c4427c6cbeba009fd76b1b95ad764755fdf958c234470acd"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:931e225b406d67d0a8a8f549242a0a1d173a02e0179d86b88351de19c393e06f"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp37-cp37m-win_amd64.whl", hash = "sha256:975b674d7816c08cf47a50cfc5b73a36ca0b3ef32d8e37a788b7cae38b9e1549"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp38-cp38-macosx_10_14_x86_64.whl", hash = "sha256:e114d672fc565985468d6a26a1e54e2f0002ab76c711f49a56d948ad05718c80"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:630372fe2f1c05b57c4ad0c9050b570bc67e474ec513cf046832f8889002fab7"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d0736853c35030e027c0f9577f07355e5cd21463321008ef4ee8b390f913fdd6"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp38-cp38-win_amd64.whl", hash = "sha256:049b21d5056f57952b0450c2bac9c2bf2fabc4bbb571470abf0cba4243a41dfe"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp39-cp39-macosx_10_14_x86_64.whl", hash = "sha256:655af38843d83ef322db190d162e21060ca143935a04f4b64b29f60c1c4dc073"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:8543e14b2f32771e7a7eca7a3d34a8fbdf1f4e9ae7d346bcacff011f43c693cb"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ef5656932c1f4d4e4d366cdae469562344ecd38cd51de70ebf60e68ee0834da1"},
+    {file = "tensorflow_io_gcs_filesystem-0.29.0-cp39-cp39-win_amd64.whl", hash = "sha256:bcb7405474ed136b3a2e2181a732968c52ba9f35a03fe296acc9f1ec4e7044ee"},
+]
+
+[package.extras]
+tensorflow = ["tensorflow (>=2.11.0,<2.12.0)"]
+tensorflow-aarch64 = ["tensorflow-aarch64 (>=2.11.0,<2.12.0)"]
+tensorflow-cpu = ["tensorflow-cpu (>=2.11.0,<2.12.0)"]
+tensorflow-gpu = ["tensorflow-gpu (>=2.11.0,<2.12.0)"]
+tensorflow-rocm = ["tensorflow-rocm (>=2.11.0,<2.12.0)"]
+
+[[package]]
 name = "threadpoolctl"
 version = "3.1.0"
 description = "threadpoolctl"
@@ -2027,4 +2187,4 @@ test = ["pytest (>=3.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "=3.10.9"
-content-hash = "5fc05901143697f1214173855edf9de882278da9ad0fd072a0c410d259244a46"
+content-hash = "1aff81fa0a83f0363b1a04bf73bfb1bac07edf3e35d71c6a40d3e7fe514a514a"
