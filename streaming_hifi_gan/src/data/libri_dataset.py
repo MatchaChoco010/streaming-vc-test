@@ -16,14 +16,14 @@ class LibriDataset(Dataset):
                 訓練用かどうか
         """
         self.path = "dataset/resampled/LibriSpeech/"
-        file_list = []
+        self.file_list = []
         if train:
             for s in ["test-clean", "train-clean-100", "train-clean-360"]:
                 split_list = list((pathlib.Path(self.path) / s).rglob("*.flac"))
-                file_list += split_list
+                self.file_list += split_list
         else:
             split_list = list((pathlib.Path(self.path) / "dev-clean").rglob("*.flac"))
-            file_list += split_list
+            self.file_list += split_list
 
     def __getitem__(self, index) -> Tuple[str, List[int]]:
         return str(self.file_list[index])
