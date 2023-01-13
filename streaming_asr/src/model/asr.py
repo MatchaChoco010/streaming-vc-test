@@ -33,7 +33,13 @@ class ASR(nn.Module):
         self.feature_extractor = FeatureExtractor()
         self.encoder = Encoder(self.input_feature_size, self.decoder_feature_size)
         self.decoder = Decoder(self.decoder_feature_size, vocab_size)
-        self.ctc_layers = nn.Linear(self.decoder_feature_size, vocab_size, bias=False)
+        self.ctc_layers = nn.Sequential(
+            nn.Linear(self.decoder_feature_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, vocab_size),
+        )
 
     def forward(
         self,

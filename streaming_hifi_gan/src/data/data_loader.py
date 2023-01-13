@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 import torchaudio
 from src.data.ljspeech_dataset import LJSpeechDataset
+from src.data.libri_dataset import LibriDataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
 
@@ -90,7 +91,7 @@ def load_dataset(
     collect_validation_fn = partial(collect_audio_batch)
 
     data_loader = DataLoader(
-        LJSpeechDataset(train=True),
+        LibriDataset(train=True),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,
@@ -98,7 +99,7 @@ def load_dataset(
         pin_memory=True,
     )
     validation_loader = DataLoader(
-        LJSpeechDataset(train=False),
+        LibriDataset(train=False),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,
