@@ -1,3 +1,4 @@
+import math
 import random
 from functools import partial
 from typing import List, Tuple
@@ -5,8 +6,8 @@ from typing import List, Tuple
 import torch
 import torch.nn.functional as F
 import torchaudio
-from src.data.ljspeech_dataset import LJSpeechDataset
 from src.data.libri_dataset import LibriDataset
+from src.data.ljspeech_dataset import LJSpeechDataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
 
@@ -35,6 +36,11 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
         for audio_filename in batch:
             audio, sr = torchaudio.load(audio_filename)
 
+            # SEGMENT_SIZEを1.25倍速にするときのサンプル数で適当に切り出す
+            cut_size = math.ceil(SEGMENT_SIZE / 1.25)
+            audio_start = random.randint(0, audio.shape[1] - cut_size)
+            audio = audio[:, audio_start : audio_start + cut_size]
+
             # スピードを0.75倍から1.25倍までの範囲でランダムに引き伸ばす
             speed = random.uniform(0.75, 1.25)
             audio, _ = torchaudio.sox_effects.apply_effects_tensor(
@@ -46,6 +52,7 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
                 ],
             )
 
+            # SEGMENT_SIZEで切り出す
             if audio.shape[1] < SEGMENT_SIZE:
                 audio = F.pad(audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant")
             else:

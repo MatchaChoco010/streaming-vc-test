@@ -25,7 +25,7 @@ class LibriDataset(Dataset):
             split_list = list((pathlib.Path(self.path) / "dev-clean").rglob("*.flac"))
             self.file_list += split_list
 
-    def __getitem__(self, index) -> Tuple[str, List[int]]:
+    def __getitem__(self, index) -> str:
         return str(self.file_list[index])
 
     def __len__(self) -> int:
