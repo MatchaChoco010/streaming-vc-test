@@ -35,8 +35,8 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
         for audio_filename in batch:
             audio, sr = torchaudio.load(audio_filename)
 
-            # スピードを0.3倍から2.0倍までの範囲でランダムに引き伸ばす
-            speed = random.uniform(0.3, 2.0)
+            # スピードを0.75倍から1.25倍までの範囲でランダムに引き伸ばす
+            speed = random.uniform(0.75, 1.25)
             audio, _ = torchaudio.sox_effects.apply_effects_tensor(
                 audio,
                 sr,
