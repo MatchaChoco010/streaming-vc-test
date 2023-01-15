@@ -73,9 +73,7 @@ class Trainer:
         self.seq_loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=False)
 
-        self.optimizer = optim.AdamW(
-            self.model.parameters(), lr=0.001
-        )
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=0.001)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -123,7 +121,7 @@ class Trainer:
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
         self.model.load_state_dict(ckpt["model"])
-        self.optimizer.load_state_dict(ckpt["optimizer"])
+        # self.optimizer.load_state_dict(ckpt["optimizer"])
         self.step = ckpt["step"]
         self.n_epochs = ckpt["n_epochs"]
         self.best_cer = ckpt["best_cer"]
