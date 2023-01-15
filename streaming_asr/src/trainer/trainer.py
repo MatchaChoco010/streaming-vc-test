@@ -74,7 +74,7 @@ class Trainer:
         self.ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=False)
 
         self.optimizer = optim.AdamW(
-            self.generator.parameters(), lr=0.001
+            self.model.parameters(), lr=0.001
         )
 
         if exp_name is not None:
