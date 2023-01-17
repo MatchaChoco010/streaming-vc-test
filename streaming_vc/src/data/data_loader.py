@@ -10,7 +10,7 @@ import torchaudio
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
 
-SEGMENT_SIZE = 6 * 256 * 32
+SEGMENT_SIZE = 6 * 256 * 24
 
 
 class VCDataset(Dataset):
@@ -75,8 +75,8 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
             audio_list.append(audio)
             mel_list.append(mel)
 
-        audio = torch.stack(audio_list, dim=0).squeeze(1)
-        mel = torch.stack(mel_list, dim=0).squeeze()
+        audio = torch.stack(audio_list, dim=0)
+        mel = torch.stack(mel_list, dim=0).squeeze(1)
 
     return audio, mel
 
@@ -99,14 +99,12 @@ def load_dataset(
         data_loader: DataLoader
             学習用のデータセットのローダー
     """
-    collect_data_fn = partial(collect_audio_batch)
-
     data_loader = DataLoader(
         VCDataset(dataset_dir),
         batch_size=batch_size,
         shuffle=True,
         drop_last=False,
-        collate_fn=collect_data_fn,
+        collate_fn=collect_audio_batch,
         pin_memory=True,
     )
 

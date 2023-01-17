@@ -12,7 +12,7 @@ class VCModel(nn.Module):
     def __init__(self):
         super(VCModel, self).__init__()
         self.layers = nn.Sequential(
-            FFTBlock(512, 512),
+            FFTBlock(32, 512),
             nn.Linear(512, 80),
         )
 
@@ -25,6 +25,5 @@ class VCModel(nn.Module):
             xs: Tensor (batch, mel_size, seq_length)
                 出力の特徴量
         """
-        # xs = log_melspectrogram(self.layers(xs))
         xs = self.layers(xs)
         return xs.transpose(1, 2)

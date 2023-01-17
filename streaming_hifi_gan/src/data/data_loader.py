@@ -71,7 +71,7 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
             audio_list.append(audio)
             mel_list.append(mel)
 
-        audio = torch.stack(audio_list, dim=0).squeeze(0)
+        audio = torch.stack(audio_list, dim=0).squeeze(0) # ←?
         mel = torch.stack(mel_list, dim=0).squeeze()
 
     return audio, mel

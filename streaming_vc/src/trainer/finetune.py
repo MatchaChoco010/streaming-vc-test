@@ -1,3 +1,4 @@
+import itertools
 import os
 import pathlib
 from datetime import datetime
@@ -10,15 +11,18 @@ import torchaudio
 from src.data.data_loader import load_dataset
 from src.model.generator import Generator
 from src.model.vc_model import VCModel
+from src.model.multi_period_discriminator import MultiPeriodDiscriminator
+from src.model.multi_scale_discriminator import MultiScaleDiscriminator
+from src.module.log_melspectrogram import log_melspectrogram
+from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
-SEGMENT_SIZE = 6 * 256 * 32
+SEGMENT_SIZE = 6 * 256 * 24
 
-
-class Trainer:
+class Finetune:
     """
-    VCをトレーニングするクラス。
+    HiFi-GANのfine tuningとvcの訓練を進めるクラス
     """
 
     def __init__(
@@ -27,18 +31,15 @@ class Trainer:
         testdata_dir: str,
         feature_extractor_onnx_path: str,
         encoder_onnx_path: str,
+        vc_ckpt_path: str,
         vocoder_ckpt_path: str,
         batch_size: int = 4,
         max_step: int = 10000001,
         progress_step: int = 10,
-        valid_step: int = 5000,
+        valid_step: int = 1000,
         exp_name: str | None = None,
     ):
-        """
-        Arguments:
-            exp_name: str
-                再開する実験名。Noneの場合は新しい実験が生成される。
-        """
+        self.n_epochs = 0
         self.dataset_dir = dataset_dir
         self.testdata_dir = testdata_dir
         self.batch_size = batch_size
@@ -53,10 +54,10 @@ class Trainer:
             else f"exp-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         )
 
-        self.ckpt_dir = os.path.join("output/vc/ckpt", self.exp_name)
+        self.ckpt_dir = os.path.join("output/finetune/ckpt", self.exp_name)
         os.makedirs(self.ckpt_dir, exist_ok=True)
 
-        self.log_dir = os.path.join("output/vc/log", self.exp_name)
+        self.log_dir = os.path.join("output/finetune/log", self.exp_name)
         self.log = SummaryWriter(self.log_dir)
 
         self.step = 0
@@ -75,13 +76,31 @@ class Trainer:
             providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
         )
 
-        self.model = VCModel().to(self.device)
+        self.vc_model = VCModel().to(self.device)
+        vc_ckpt = torch.load(vc_ckpt_path, map_location=self.device)
+        self.vc_model.load_state_dict(vc_ckpt["model"])
 
-        self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
-        self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0005)
+        self.generator = Generator().to(self.device).eval()
+        self.generator.load_state_dict(vocoder_ckpt["generator"])
+
+        self.mpd = MultiPeriodDiscriminator().to(self.device)
+        self.mpd.load_state_dict(vocoder_ckpt["mpd"])
+
+        self.msd = MultiScaleDiscriminator().to(self.device)
+        self.msd.load_state_dict(vocoder_ckpt["msd"])
+
+        self.optimizer_g = optim.AdamW(
+            itertools.chain(self.vc_model.parameters(), self.generator.parameters()),
+            lr=0.0002,
+            betas=(0.8, 0.99)
+        )
+        self.optimizer_d = optim.AdamW(
+            itertools.chain(self.mpd.parameters(), self.msd.parameters()),
+            lr=0.0002,
+            betas=(0.8, 0.99),
+        )
 
         if exp_name is not None:
             self.load_ckpt()
@@ -92,10 +111,14 @@ class Trainer:
         """
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
-        self.model.load_state_dict(ckpt["model"])
-        self.optimizer.load_state_dict(ckpt["optimizer"])
+        self.vc_model.load_state_dict(ckpt["vc_model"])
+        self.generator.load_state_dict(ckpt["generator"])
+        self.mpd.load_state_dict(ckpt["mpd"])
+        self.msd.load_state_dict(ckpt["msd"])
+        self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
+        self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
         self.step = ckpt["step"]
-        self.best_error = ckpt["best_error"]
+        self.n_epochs = ckpt["n_epochs"]
         print(f"Load checkpoint from {ckpt_path}")
 
     def save_ckpt(self):
@@ -103,16 +126,19 @@ class Trainer:
         ckptを保存する
         """
         ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
+        latest_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         save_dict = {
-            "model": self.model.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
+            "vc_model": self.vc_model.state_dict(),
+            "generator": self.generator.state_dict(),
+            "mpd": self.mpd.state_dict(),
+            "msd": self.msd.state_dict(),
+            "optimizer_g": self.optimizer_g.state_dict(),
+            "optimizer_d": self.optimizer_d.state_dict(),
             "step": self.step,
-            "best_error": self.best_error,
+            "n_epochs": self.n_epochs,
         }
         torch.save(save_dict, ckpt_path)
-
-        ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
-        torch.save(save_dict, ckpt_path)
+        torch.save(save_dict, latest_path)
 
     def get_time(self) -> str:
         """
@@ -235,52 +261,117 @@ class Trainer:
         """
         print(f"Experiment name: {self.exp_name}\n")
         print("Parameters:")
-        for k in self.model.state_dict().keys():
+        for k in self.generator.state_dict().keys():
             print(f"\t{k}")
         print("\n")
 
         self.start_time = datetime.now()
-        self.optimizer.zero_grad()
 
-        losses = []
+        vc_losses = []
+        disc_losses = []
+        gem_losses = []
+        mel_errors = []
 
         while self.step < self.max_step:
             for audio, mel in self.train_loader:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
                 mel = torch.autograd.Variable(mel.to(device=self.device))
 
-                feat = self.feature_extract(audio)
+                feat = self.feature_extract(audio.squeeze(1))
                 feature = self.encode(feat)
 
-                mel_hat = self.model(feature)
+                mel_hat = self.vc_model(feature)
 
-                # calc loss
-                loss = F.mse_loss(mel_hat, mel)
-                losses.append(loss.item())
+                # calc vc loss
+                loss_vc = F.mse_loss(mel_hat, mel) * 25
 
-                # optimizer step
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+                # HiFi-GAN finetune
+                audio_g_hat = self.generator(mel_hat)
+                mel_g_hat = torchaudio.transforms.MelSpectrogram(
+                    n_fft=1024,
+                    n_mels=80,
+                    sample_rate=24000,
+                    hop_length=256,
+                    win_length=1024,
+                ).to(device=self.device)(audio_g_hat.squeeze(1))[
+                    :, :, : SEGMENT_SIZE // 256
+                ]
+                mel_g_hat = log_melspectrogram(mel_g_hat)
+
+                self.optimizer_d.zero_grad()
+
+                # MPD
+                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(audio, audio_g_hat.detach())
+                loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(
+                    y_df_hat_r, y_df_hat_g
+                )
+
+                # MSD
+                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(audio, audio_g_hat.detach())
+                loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
+                    y_ds_hat_r, y_ds_hat_g
+                )
+
+                loss_disc_all = loss_disc_s + loss_disc_f
+
+                loss_disc_all.backward()
+                self.optimizer_d.step()
+
+                # Generator
+                self.optimizer_g.zero_grad()
+
+                # L1 Mel-Spectrogram Loss
+                loss_mel = F.l1_loss(mel_g_hat, mel) * 45
+
+                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(
+                    audio, audio_g_hat
+                )
+                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(
+                    audio, audio_g_hat
+                )
+                loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
+                loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
+                loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
+                loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
+                loss_gen_all = (
+                    loss_gen_s + loss_gen_f + loss_fm_s + loss_fm_f + loss_mel + loss_vc
+                )
+
+                loss_gen_all.backward()
+                self.optimizer_g.step()
+
+                vc_losses.append(loss_vc.item())
+                disc_losses.append(loss_disc_all.item())
+                gen_losses.append(loss_gen_all.item())
+                mel_errors.append(F.l1_loss(mel, mel_g_hat).item())
 
                 # ロギング
                 if self.step % self.progress_step == 0:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Step: {self.step}] loss: {sum(losses) / len(losses)}",
+                        f"[{current_time}][Epochs: {self.n_epochs}, Step: {self.step}] vc_loss: {loss_vc.item():.4f}, d_loss: {loss_disc_all.item():.4f}, g_loss: {loss_gen_all.item():.4f}",
                     )
-                    ## mel error
-                    mel_error = F.l1_loss(mel, mel_hat).item()
                     ## tensorboard
                     self.log.add_scalar(
-                        "train/loss", sum(losses) / len(losses), self.step
+                        "train/loss/vc", sum(vc_losses) / len(vc_losses), self.step
                     )
-                    self.log.add_scalar("train/mel_error", mel_error, self.step)
-                    # clear loss buffer
-                    losses = []
+                    self.log.add_scalar(
+                        "train/loss/d", sum(disc_losses) / len(disc_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/loss/g", sum(gen_losses) / len(gen_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/mel_error", sum(mel_errors) / len(mel_errors), self.step
+                    )
+                    ## clear loss buffer
+                    vc_losses = []
+                    disc_losses = []
+                    gen_losses = []
+                    mel_errors = []
 
-                    if self.step % 1000 == 0:
+                    if self.step % 100 == 0:
                         # 適当にmelをremapして画像として保存
                         self.log.add_image(
                             "mel", (mel[0] + 15) / 30, self.step, dataformats="HW"
@@ -288,6 +379,12 @@ class Trainer:
                         self.log.add_image(
                             "mel_hat",
                             (mel_hat[0] + 15) / 30,
+                            self.step,
+                            dataformats="HW",
+                        )
+                        self.log.add_image(
+                            "mel_g_hat",
+                            (mel_g_hat[0] + 15) / 30,
                             self.step,
                             dataformats="HW",
                         )
@@ -306,8 +403,10 @@ class Trainer:
 
         self.log.close()
 
+
     def validate(self):
-        self.model.eval()
+        self.vc_model.eval()
+        self.generator.eval()
 
         if self.step == 0:
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
@@ -323,7 +422,7 @@ class Trainer:
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
                 current_time = self.get_time()
                 print(
-                    f"[{current_time}][Step: {self.step}] Start convert test file : {filepath.name[:24]}"
+                    f"[{current_time}][Epochs: {self.n_epochs}, Step: {self.step}] Start convert : {filepath.name[:24]}"
                 )
 
                 y, sr = torchaudio.load(str(filepath))
@@ -348,22 +447,20 @@ class Trainer:
                         feat_history = torch.cat([feat_history, feat], dim=1)
 
                     feature = self.encode(feat_history[:, -history_size:, :])[:, -6:, :]
-                    # feature = self.encode(feat)[:, -6:, :]
 
                     if mel_history is None:
                         mel_history = feature
                     else:
                         mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.model(mel_history[:, -history_size:, :])[:, :, -6:]
-                    # mel_hat = self.model(feature)[:, :, -6:]
+                    mel_hat = self.vc_model(mel_history[:, -history_size:, :])[:, :, -6:]
 
                     if mel_hat_history is None:
                         mel_hat_history = mel_hat
                     else:
                         mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
 
-                    audio_hat = self.vocoder(
+                    audio_hat = self.generator(
                         mel_hat_history[:, :, -vocoder_history_size:]
                     )[:, :, -256 * 6 :]
                     audio_items.append(audio_hat)
@@ -375,7 +472,7 @@ class Trainer:
 
                 current_time = self.get_time()
                 print(
-                    f"[{current_time}][Step: {self.step}] Finish convert test file: {filepath.name[:24]}"
+                    f"[{current_time}][Epochs: {self.n_epochs}, Step: {self.step}] Finish convert: {filepath.name[:24]}"
                 )
 
                 self.log.add_audio(
@@ -386,4 +483,5 @@ class Trainer:
         self.save_ckpt()
 
         # Resume training
-        self.model.train()
+        self.vc_model.train()
+        self.generator.train()

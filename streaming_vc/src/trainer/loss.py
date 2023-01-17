@@ -2,24 +2,35 @@ import torch
 import torch.nn.functional as F
 
 
-class SpectralConvergengeLoss(torch.nn.Module):
-    """Spectral convergence loss module."""
+def feature_loss(fmap_r, fmap_g):
+    loss = torch.zeros(1).to(device=fmap_r[0][0].device)
+    for dr, dg in zip(fmap_r, fmap_g):
+        for rl, gl in zip(dr, dg):
+            loss += torch.mean(torch.abs(rl - gl))
 
-    def __init__(self):
-        """Initilize spectral convergence loss module."""
-        super(SpectralConvergengeLoss, self).__init__()
+    return loss * 2
 
-    def forward(self, x_logmel, y_logmel):
-        """
-        Arguments:
-            x_logmel: torch.Tensor (batch_size, seq_len, mel_size)
-                logメルスペクトログラムの推定値
-            y_logmel: torch.Tensor (batch_size, seq_len, mel_size)
-                logメルスペクトログラムの正解値
-        Returns:
-            loss: torch.Tensor (batch_size,)
-                spectral convergence loss
-        """
-        y_mag = torch.exp(y_logmel)
-        x_mag = torch.exp(x_logmel)
-        return torch.norm(y_mag - x_mag, p="fro") / torch.norm(y_mag, p="fro")
+
+def discriminator_loss(disc_real_outputs, disc_generated_outputs):
+    loss = torch.zeros(1).to(device=disc_real_outputs[0].device)
+    r_losses = []
+    g_losses = []
+    for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
+        r_loss = torch.mean((1 - dr) ** 2)
+        g_loss = torch.mean(dg**2)
+        loss += r_loss + g_loss
+        r_losses.append(r_loss.item())
+        g_losses.append(g_loss.item())
+
+    return loss, r_losses, g_losses
+
+
+def generator_loss(disc_outputs):
+    loss = torch.zeros(1).to(device=disc_outputs[0].device)
+    gen_losses = []
+    for dg in disc_outputs:
+        l = torch.mean((1 - dg) ** 2)
+        gen_losses.append(l)
+        loss += l
+
+    return loss, gen_losses

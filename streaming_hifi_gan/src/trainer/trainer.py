@@ -1,7 +1,6 @@
 import itertools
 import os
 import pathlib
-import shutil
 from datetime import datetime
 
 import torch
