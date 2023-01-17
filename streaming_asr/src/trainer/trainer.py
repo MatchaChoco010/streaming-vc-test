@@ -339,6 +339,8 @@ class Trainer:
                     ctc_losses = []
                     att_losses = []
                     total_losses = []
+                    ctc_cers = []
+                    att_cers = []
 
                 # バリデーションの実行
                 if self.step % self.valid_step == 0:
