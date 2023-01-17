@@ -10,15 +10,16 @@ import torch.nn.functional as F
 import torchaudio
 from src.data.data_loader import load_dataset
 from src.model.generator import Generator
-from src.model.vc_model import VCModel
 from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
+from src.model.vc_model import VCModel
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
 SEGMENT_SIZE = 6 * 256 * 24
+
 
 class Finetune:
     """
@@ -94,7 +95,7 @@ class Finetune:
         self.optimizer_g = optim.AdamW(
             itertools.chain(self.vc_model.parameters(), self.generator.parameters()),
             lr=0.0002,
-            betas=(0.8, 0.99)
+            betas=(0.8, 0.99),
         )
         self.optimizer_d = optim.AdamW(
             itertools.chain(self.mpd.parameters(), self.msd.parameters()),
@@ -269,7 +270,7 @@ class Finetune:
 
         vc_losses = []
         disc_losses = []
-        gem_losses = []
+        gen_losses = []
         mel_errors = []
 
         while self.step < self.max_step:
@@ -403,7 +404,6 @@ class Finetune:
 
         self.log.close()
 
-
     def validate(self):
         self.vc_model.eval()
         self.generator.eval()
@@ -453,7 +453,9 @@ class Finetune:
                     else:
                         mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.vc_model(mel_history[:, -history_size:, :])[:, :, -6:]
+                    mel_hat = self.vc_model(mel_history[:, -history_size:, :])[
+                        :, :, -6:
+                    ]
 
                     if mel_hat_history is None:
                         mel_hat_history = mel_hat
