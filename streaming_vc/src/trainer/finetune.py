@@ -18,7 +18,7 @@ from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
-SEGMENT_SIZE = 6 * 256 * 24
+SEGMENT_SIZE = 6 * 256 * 16
 
 
 class Finetune:

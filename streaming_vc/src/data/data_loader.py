@@ -10,7 +10,7 @@ import torchaudio
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
 
-SEGMENT_SIZE = 6 * 256 * 24
+SEGMENT_SIZE = 6 * 256 * 16
 
 
 class VCDataset(Dataset):
@@ -22,7 +22,7 @@ class VCDataset(Dataset):
         """
         Arguments:
             dataset_dir: str
-                データセットの入っているティでクトリ
+                データセットの入っているディレクトリ
         """
         self.file_list = [
             str(item) for item in pathlib.Path(dataset_dir).rglob("*.wav")
