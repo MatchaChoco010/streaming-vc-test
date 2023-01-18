@@ -94,21 +94,24 @@ class Encoder(nn.Module):
 
         # 入力のembedding
         self.embed = nn.Sequential(
-            nn.Linear(input_feature_size, self.out_feature_dim),
-            nn.LayerNorm(self.out_feature_dim),
+            nn.Linear(input_feature_size, 512),
+            nn.LayerNorm(512),
             nn.Dropout(0.1),
             nn.ReLU(),
-            PositionalEncoding(self.out_feature_dim),
+            PositionalEncoding(512),
         )
 
         # # Encoderのレイヤー
         encoder_modules = []
         for _ in range(6):
-            encoder_modules.append(EncoderLayer(feature_size=self.out_feature_dim))
+            encoder_modules.append(EncoderLayer(feature_size=512))
         self.encoders = nn.ModuleList(encoder_modules)
 
-        # Normalizationレイヤー
-        self.after_norm = nn.LayerNorm(self.out_feature_dim)
+        # feed forward
+        self.fc1 = nn.Linear(512, 2048)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.1)
+        self.fc2 = nn.Linear(2048, self.out_feature_dim)
 
     def forward(
         self, input_features: torch.Tensor, input_lengths: torch.Tensor
@@ -148,8 +151,10 @@ class Encoder(nn.Module):
         for encoder_layer in self.encoders:
             xs, mask = encoder_layer(xs, mask)
 
-        # Normalization
-        xs = self.after_norm(xs)
+        # feedforwardを通す
+        xs = self.relu(self.fc1(xs))
+        xs = self.dropout(xs)
+        xs = self.fc2(xs)
         # assert xs.shape == (batch_size, seq_length, self.out_feature_dim)
 
         # 出力の長さの計算
