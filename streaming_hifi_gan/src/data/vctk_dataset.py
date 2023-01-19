@@ -187,31 +187,13 @@ class VCTKDataset(IterableDataset):
         for audio_filename in self.file_list:
             audio, sr = torchaudio.load(audio_filename)
 
-            # SEGMENT_SIZEの2倍のサンプル数で適当に切り出す
-            cut_size = SEGMENT_SIZE * 2
-            audio_start = random.randint(0, max(audio.shape[1] - cut_size, 0))
-            audio = audio[:, audio_start : audio_start + cut_size]
-
-            # スピードを0.98倍から1.02倍までの範囲でランダムに引き伸ばす
-            speed = random.uniform(0.98, 1.02)
-            audio, _ = torchaudio.sox_effects.apply_effects_tensor(
-                audio,
-                sr,
-                [
-                    ["speed", f"{speed}"],
-                    ["rate", "24000"],
-                ],
-            )
-
             # 適当にずらしてSEGMENT_SIZEで刻んでいく
             audio_start = random.randint(0, SEGMENT_SIZE)
             for start in range(audio_start, audio.shape[1], SEGMENT_SIZE):
                 audio = audio[:, start : start + SEGMENT_SIZE]
 
                 if audio.shape[1] < SEGMENT_SIZE:
-                    audio = F.pad(
-                        audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant"
-                    )
+                    audio = F.pad(audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant")
 
                 mel = torchaudio.transforms.MelSpectrogram(
                     n_fft=1024,
