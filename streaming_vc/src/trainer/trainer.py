@@ -13,7 +13,7 @@ from src.model.vc_model import VCModel
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
-SEGMENT_SIZE = 6 * 256 * 32
+SEGMENT_SIZE = 6 * 256 * 16
 
 
 class Trainer:
@@ -249,7 +249,7 @@ class Trainer:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
                 mel = torch.autograd.Variable(mel.to(device=self.device))
 
-                feat = self.feature_extract(audio)
+                feat = self.feature_extract(audio.squeeze(1))
                 feature = self.encode(feat)
 
                 mel_hat = self.model(feature)
@@ -280,7 +280,7 @@ class Trainer:
                     # clear loss buffer
                     losses = []
 
-                    if self.step % 1000 == 0:
+                    if self.step % 100 == 0:
                         # 適当にmelをremapして画像として保存
                         self.log.add_image(
                             "mel", (mel[0] + 15) / 30, self.step, dataformats="HW"

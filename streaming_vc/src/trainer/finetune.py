@@ -93,7 +93,7 @@ class Finetune:
         self.msd.load_state_dict(vocoder_ckpt["msd"])
 
         self.optimizer_g = optim.AdamW(
-            itertools.chain(self.vc_model.parameters(), self.generator.parameters()),
+            self.generator.parameters(),
             lr=0.0002,
             betas=(0.8, 0.99),
         )
@@ -138,7 +138,7 @@ class Finetune:
             "step": self.step,
             "n_epochs": self.n_epochs,
         }
-        torch.save(save_dict, ckpt_path)
+        # torch.save(save_dict, ckpt_path)
         torch.save(save_dict, latest_path)
 
     def get_time(self) -> str:
@@ -268,7 +268,7 @@ class Finetune:
 
         self.start_time = datetime.now()
 
-        vc_losses = []
+        # vc_losses = []
         disc_losses = []
         gen_losses = []
         mel_errors = []
@@ -282,9 +282,6 @@ class Finetune:
                 feature = self.encode(feat)
 
                 mel_hat = self.vc_model(feature)
-
-                # calc vc loss
-                loss_vc = F.mse_loss(mel_hat, mel) * 25
 
                 # HiFi-GAN finetune
                 audio_g_hat = self.generator(mel_hat)
@@ -335,13 +332,13 @@ class Finetune:
                 loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
                 loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
                 loss_gen_all = (
-                    loss_gen_s + loss_gen_f + loss_fm_s + loss_fm_f + loss_mel + loss_vc
+                    loss_gen_s + loss_gen_f + loss_fm_s + loss_fm_f + loss_mel
                 )
 
                 loss_gen_all.backward()
                 self.optimizer_g.step()
 
-                vc_losses.append(loss_vc.item())
+                # vc_losses.append(loss_vc.item())
                 disc_losses.append(loss_disc_all.item())
                 gen_losses.append(loss_gen_all.item())
                 mel_errors.append(F.l1_loss(mel, mel_g_hat).item())
@@ -351,12 +348,9 @@ class Finetune:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Epochs: {self.n_epochs}, Step: {self.step}] vc_loss: {loss_vc.item():.4f}, d_loss: {loss_disc_all.item():.4f}, g_loss: {loss_gen_all.item():.4f}",
+                        f"[{current_time}][Epochs: {self.n_epochs}, Step: {self.step}] d_loss: {loss_disc_all.item():.4f}, g_loss: {loss_gen_all.item():.4f}",
                     )
                     ## tensorboard
-                    self.log.add_scalar(
-                        "train/loss/vc", sum(vc_losses) / len(vc_losses), self.step
-                    )
                     self.log.add_scalar(
                         "train/loss/d", sum(disc_losses) / len(disc_losses), self.step
                     )
@@ -367,7 +361,6 @@ class Finetune:
                         "train/mel_error", sum(mel_errors) / len(mel_errors), self.step
                     )
                     ## clear loss buffer
-                    vc_losses = []
                     disc_losses = []
                     gen_losses = []
                     mel_errors = []

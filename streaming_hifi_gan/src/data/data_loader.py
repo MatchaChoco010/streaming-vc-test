@@ -13,67 +13,34 @@ from torch.utils.data import DataLoader, Dataset
 SEGMENT_SIZE = 8192
 
 
-def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    データのバッチをまとめる関数
+class ShuffleDataset(torch.utils.data.IterableDataset):
+    def __init__(self, dataset, buffer_size):
+        super().__init__()
+        self.dataset = dataset
+        self.buffer_size = buffer_size
 
-    Arguments:
-        batch: List[Dataset]
-            データのバッチ
-    Returns:
-        (audio, mel):
-            Tuple[torch.Tensor, torch.Tensor]
+    def __iter__(self):
+        shufbuf = []
+        try:
+            dataset_iter = iter(self.dataset)
+            for i in range(self.buffer_size):
+                shufbuf.append(next(dataset_iter))
+        except:
+            self.buffer_size = len(shufbuf)
 
-        audio: torch.Tensor (batch_size, segments)
-            音声の特徴量
-        mel: torch.Tensor (batch_size, segments / 256, mel_feature_size)
-            各バッチの音声特徴量の長さ
-    """
-    with torch.no_grad():
-        audio_list, mel_list = [], []
-
-        for audio_filename in batch:
-            audio, sr = torchaudio.load(audio_filename)
-
-            # SEGMENT_SIZEの2倍のサンプル数で適当に切り出す
-            cut_size = SEGMENT_SIZE * 2
-            audio_start = random.randint(0, max(audio.shape[1] - cut_size, 0))
-            audio = audio[:, audio_start : audio_start + cut_size]
-
-            # スピードを0.98倍から1.02倍までの範囲でランダムに引き伸ばす
-            speed = random.uniform(0.98, 1.02)
-            audio, _ = torchaudio.sox_effects.apply_effects_tensor(
-                audio,
-                sr,
-                [
-                    ["speed", f"{speed}"],
-                    ["rate", "24000"],
-                ],
-            )
-
-            # SEGMENT_SIZEで切り出す
-            if audio.shape[1] < SEGMENT_SIZE:
-                audio = F.pad(audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant")
-            else:
-                audio_start = random.randint(0, audio.shape[1] - SEGMENT_SIZE)
-                audio = audio[:, audio_start : audio_start + SEGMENT_SIZE]
-
-            mel = torchaudio.transforms.MelSpectrogram(
-                n_fft=1024,
-                n_mels=80,
-                sample_rate=24000,
-                hop_length=256,
-                win_length=1024,
-            )(audio)[:, :, : SEGMENT_SIZE // 256]
-            mel = log_melspectrogram(mel)
-
-            audio_list.append(audio)
-            mel_list.append(mel)
-
-        audio = torch.stack(audio_list, dim=0)
-        mel = torch.stack(mel_list, dim=0).squeeze()
-
-    return audio, mel
+        try:
+            while True:
+                try:
+                    item = next(dataset_iter)
+                    evict_idx = random.randint(0, self.buffer_size - 1)
+                    yield shufbuf[evict_idx]
+                    shufbuf[evict_idx] = item
+                except StopIteration:
+                    break
+            while len(shufbuf) > 0:
+                yield shufbuf.pop()
+        except GeneratorExit:
+            pass
 
 
 def load_dataset(
@@ -97,7 +64,7 @@ def load_dataset(
     collect_validation_fn = partial(collect_audio_batch)
 
     data_loader = DataLoader(
-        VCTKDataset(train=True),
+        ShuffleDataset(VCTKDataset(train=True), 512),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,

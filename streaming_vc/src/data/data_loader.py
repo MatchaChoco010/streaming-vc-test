@@ -1,19 +1,16 @@
 import pathlib
-import pickle
 import random
-from functools import partial
-from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
 import torchaudio
 from src.module.log_melspectrogram import log_melspectrogram
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, IterableDataset
 
 SEGMENT_SIZE = 6 * 256 * 16
 
 
-class VCDataset(Dataset):
+class VCDataset(IterableDataset):
     """
     VC訓練用のデータセットを扱うクラス
     """
@@ -28,57 +25,69 @@ class VCDataset(Dataset):
             str(item) for item in pathlib.Path(dataset_dir).rglob("*.wav")
         ]
 
-    def __getitem__(self, index) -> str:
-        return self.file_list[index]
+    def __iter__(self):
+        """
+        Returns:
+            Generator[(audio, mel), None, None]:
+                Generator[Tuple[torch.Tensor, torch.Tensor], None, None]
 
-    def __len__(self) -> int:
-        return len(self.file_list)
+            audio: torch.Tensor (batch_size, segments)
+                音声の特徴量
+            mel: torch.Tensor (batch_size, segments / 256, mel_feature_size)
+                各バッチの音声特徴量の長さ
+        """
+        for item in self.file_list:
+            audio, _ = torchaudio.load(item)
+
+            audio_start = random.randint(0, SEGMENT_SIZE)
+            for start in range(audio_start, audio.shape[1], SEGMENT_SIZE):
+                audio = audio[:, start : start + SEGMENT_SIZE]
+
+                if audio.shape[1] < SEGMENT_SIZE:
+                    audio = F.pad(
+                        audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant"
+                    )
+
+                mel = torchaudio.transforms.MelSpectrogram(
+                    n_fft=1024,
+                    n_mels=80,
+                    sample_rate=24000,
+                    hop_length=256,
+                    win_length=1024,
+                )(audio)[:, :, : SEGMENT_SIZE // 256]
+                mel = log_melspectrogram(mel).squeeze(0)
+
+                yield audio, mel
 
 
-def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    データのバッチをまとめる関数
+class ShuffleDataset(torch.utils.data.IterableDataset):
+    def __init__(self, dataset, buffer_size):
+        super().__init__()
+        self.dataset = dataset
+        self.buffer_size = buffer_size
 
-    Arguments:
-        batch: List[Dataset]
-            データのバッチ
-    Returns:
-        (audio, mel):
-            Tuple[torch.Tensor, torch.Tensor]
+    def __iter__(self):
+        shufbuf = []
+        try:
+            dataset_iter = iter(self.dataset)
+            for i in range(self.buffer_size):
+                shufbuf.append(next(dataset_iter))
+        except:
+            self.buffer_size = len(shufbuf)
 
-        audio: torch.Tensor (batch_size, segments)
-            音声の特徴量
-        mel: torch.Tensor (batch_size, segments / 256, mel_feature_size)
-            各バッチの音声特徴量の長さ
-    """
-    with torch.no_grad():
-        audio_list, mel_list = [], []
-
-        for audio_filename in batch:
-            audio, _ = torchaudio.load(audio_filename)
-
-            if audio.shape[1] < SEGMENT_SIZE:
-                audio = F.pad(audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant")
-            else:
-                audio_start = random.randint(0, audio.shape[1] - SEGMENT_SIZE)
-                audio = audio[:, audio_start : audio_start + SEGMENT_SIZE]
-
-            mel = torchaudio.transforms.MelSpectrogram(
-                n_fft=1024,
-                n_mels=80,
-                sample_rate=24000,
-                hop_length=256,
-                win_length=1024,
-            )(audio)[:, :, : SEGMENT_SIZE // 256]
-            mel = log_melspectrogram(mel)
-
-            audio_list.append(audio)
-            mel_list.append(mel)
-
-        audio = torch.stack(audio_list, dim=0)
-        mel = torch.stack(mel_list, dim=0).squeeze(1)
-
-    return audio, mel
+        try:
+            while True:
+                try:
+                    item = next(dataset_iter)
+                    evict_idx = random.randint(0, self.buffer_size - 1)
+                    yield shufbuf[evict_idx]
+                    shufbuf[evict_idx] = item
+                except StopIteration:
+                    break
+            while len(shufbuf) > 0:
+                yield shufbuf.pop()
+        except GeneratorExit:
+            pass
 
 
 def load_dataset(
@@ -100,11 +109,9 @@ def load_dataset(
             学習用のデータセットのローダー
     """
     data_loader = DataLoader(
-        VCDataset(dataset_dir),
+        ShuffleDataset(VCDataset(dataset_dir), 256),
         batch_size=batch_size,
-        shuffle=True,
         drop_last=False,
-        collate_fn=collect_audio_batch,
         pin_memory=True,
     )
 

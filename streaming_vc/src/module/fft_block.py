@@ -42,10 +42,12 @@ class FFTBlock(nn.Module):
             decoder_feature_size,
         )
         self.norm1 = nn.LayerNorm(decoder_feature_size)
+        self.dropout1 = nn.Dropout(0.1)
 
         # conv1d
         self.conv = CausalConv1d(decoder_feature_size, decoder_feature_size, 3)
         self.norm2 = nn.LayerNorm(decoder_feature_size)
+        self.dropout2 = nn.Dropout(0.1)
 
     def forward(self, input_features: torch.Tensor) -> torch.Tensor:
         """
@@ -69,11 +71,11 @@ class FFTBlock(nn.Module):
         # self attentionの計算
         residual = xs
         xs = self.norm1(xs)
-        xs = residual + self.attention(xs, xs, xs, mask_chunk)
+        xs = residual + self.dropout1(self.attention(xs, xs, xs, mask_chunk))
 
         # feed forwardの計算
         residual = xs
         xs = self.norm2(xs)
-        xs = residual + self.conv(xs.transpose(1, 2)).transpose(1, 2)
+        xs = residual + self.dropout2(self.conv(xs.transpose(1, 2)).transpose(1, 2))
 
         return xs
