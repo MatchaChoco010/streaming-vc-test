@@ -161,7 +161,9 @@ class Trainer:
             ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
             torch.save(save_dict, ckpt_path)
 
-    def calc_error_rate(self, pred: torch.Tensor, truth: torch.Tensor) -> float:
+    def calc_error_rate(
+        self, pred: torch.Tensor, truth: torch.Tensor, ignore_repeat=False
+    ) -> float:
         """
         cerを計算する
 
@@ -172,7 +174,10 @@ class Trainer:
                 正解のエンコードされたテキスト
         """
         t = [self.tokenizer.decode(t) for t in truth.argmax(dim=-1).tolist()]
-        p = [self.tokenizer.decode(t) for t in pred.argmax(dim=-1).tolist()]
+        p = [
+            self.tokenizer.decode(t, ignore_repeat=ignore_repeat)
+            for t in pred.argmax(dim=-1).tolist()
+        ]
         return cer(t, p)
 
     def progress(
@@ -298,7 +303,9 @@ class Trainer:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 4)
 
                 # cerの計算
-                ctc_cers.append(self.calc_error_rate(ctc_output, text))
+                ctc_cers.append(
+                    self.calc_error_rate(ctc_output, text, ignore_repeat=True)
+                )
                 att_cers.append(self.calc_error_rate(att_output, text))
 
                 # optimizer
@@ -401,7 +408,9 @@ class Trainer:
                 overwrite=i != 0,
             )
 
-            dev_cer["ctc"].append(self.calc_error_rate(ctc_output, text))
+            dev_cer["ctc"].append(
+                self.calc_error_rate(ctc_output, text, ignore_repeat=True)
+            )
             dev_cer["att"].append(self.calc_error_rate(att_output, text))
             losses["ctc"].append(ctc_loss.item())
             losses["att"].append(att_loss.item())
