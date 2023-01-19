@@ -26,20 +26,14 @@ class ASR(nn.Module):
 
         # パラメータ
         self.input_feature_size = 240
-        self.decoder_feature_size = 32
+        self.decoder_feature_size = 64
         self.vocab_size = vocab_size
 
         # モジュール
         self.feature_extractor = FeatureExtractor()
         self.encoder = Encoder(self.input_feature_size, self.decoder_feature_size)
         self.decoder = Decoder(self.decoder_feature_size, vocab_size)
-        self.ctc_layers = nn.Sequential(
-            nn.Linear(self.decoder_feature_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, vocab_size),
-        )
+        self.ctc_layers = nn.Linear(self.decoder_feature_size, vocab_size)
 
     def forward(
         self,

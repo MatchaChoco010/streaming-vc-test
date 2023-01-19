@@ -16,5 +16,5 @@ poetry run python bin/train.py
 ## 3 onnxモデルの出力
 
 ```
-poetry run python bin/export.py --ckpt "output/ckpt/exp-20230117-223124/ckpt-latest.pt"
+poetry run python bin/export.py --ckpt "output/ckpt/exp-20230118-103426/ckpt-latest.pt"
 ```
