@@ -37,7 +37,7 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
 
             # SEGMENT_SIZEの2倍のサンプル数で適当に切り出す
             cut_size = SEGMENT_SIZE * 2
-            audio_start = random.randint(0, audio.shape[1] - cut_size)
+            audio_start = random.randint(0, max(audio.shape[1] - cut_size, 0))
             audio = audio[:, audio_start : audio_start + cut_size]
 
             # スピードを0.98倍から1.02倍までの範囲でランダムに引き伸ばす
