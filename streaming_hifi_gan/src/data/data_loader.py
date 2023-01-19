@@ -1,14 +1,7 @@
-import math
 import random
-from functools import partial
-from typing import List, Tuple
 
-import torch
-import torch.nn.functional as F
-import torchaudio
 from src.data.vctk_dataset import VCTKDataset
-from src.module.log_melspectrogram import log_melspectrogram
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 SEGMENT_SIZE = 8192
 
