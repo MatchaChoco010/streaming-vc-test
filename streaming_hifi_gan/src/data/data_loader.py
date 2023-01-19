@@ -1,5 +1,6 @@
 import random
 
+import torch
 from src.data.vctk_dataset import VCTKDataset
 from torch.utils.data import DataLoader
 
