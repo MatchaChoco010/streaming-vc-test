@@ -267,6 +267,7 @@ class Trainer:
 
         val_err_tot = 0.0
         with torch.no_grad():
+            count = 0
             for audio, mel in self.validation_loader:
                 mel = mel.to(device=self.device)
                 audio_g_hat = self.generator(mel)[:, :, :SEGMENT_SIZE]
@@ -281,8 +282,9 @@ class Trainer:
                 ]
                 mel_g_hat = log_melspectrogram(mel_g_hat)
                 val_err_tot += F.l1_loss(mel, mel_g_hat).item()
+                count += 1
 
-            val_err = val_err_tot / len(self.validation_loader)
+            val_err = val_err_tot / count
             self.log.add_scalar("validation/mel_spec_error", val_err, self.step)
 
         # 現在のckptをlatestとして保存
