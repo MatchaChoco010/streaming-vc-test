@@ -60,15 +60,11 @@ def load_dataset(
         validation_loader: DataLoader
             学習用のデータセットのローダー
     """
-    collect_data_fn = partial(collect_audio_batch)
-    collect_validation_fn = partial(collect_audio_batch)
-
     data_loader = DataLoader(
         ShuffleDataset(VCTKDataset(train=True), 512),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,
-        collate_fn=collect_data_fn,
         pin_memory=True,
     )
     validation_loader = DataLoader(
@@ -76,7 +72,6 @@ def load_dataset(
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,
-        collate_fn=collect_validation_fn,
         pin_memory=True,
     )
 
