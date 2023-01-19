@@ -7,7 +7,6 @@ import torch
 import torch.nn.functional as F
 import torchaudio
 from src.data.vctk_dataset import VCTKDataset
-from src.data.ljspeech_dataset import LJSpeechDataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
 
