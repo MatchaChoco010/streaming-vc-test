@@ -6,7 +6,7 @@ from typing import List, Tuple
 import torch
 import torch.nn.functional as F
 import torchaudio
-from src.data.libri_dataset import LibriDataset
+from src.data.vctk_dataset import VCTKDataset
 from src.data.ljspeech_dataset import LJSpeechDataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, Dataset
@@ -36,13 +36,13 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
         for audio_filename in batch:
             audio, sr = torchaudio.load(audio_filename)
 
-            # SEGMENT_SIZEの2倍のサンプル数で適当に切り出す
-            cut_size = SEGMENT_SIZE * 2
+            # SEGMENT_SIZEの1.5倍のサンプル数で適当に切り出す
+            cut_size = SEGMENT_SIZE * 1.5
             audio_start = random.randint(0, audio.shape[1] - cut_size)
             audio = audio[:, audio_start : audio_start + cut_size]
 
-            # スピードを0.75倍から1.25倍までの範囲でランダムに引き伸ばす
-            speed = random.uniform(0.75, 1.25)
+            # スピードを0.98倍から1.02倍までの範囲でランダムに引き伸ばす
+            speed = random.uniform(0.98, 1.02)
             audio, _ = torchaudio.sox_effects.apply_effects_tensor(
                 audio,
                 sr,
@@ -71,7 +71,7 @@ def collect_audio_batch(batch: List[Dataset[str]]) -> Tuple[torch.Tensor, torch.
             audio_list.append(audio)
             mel_list.append(mel)
 
-        audio = torch.stack(audio_list, dim=0).squeeze(0) # ←?
+        audio = torch.stack(audio_list, dim=0)
         mel = torch.stack(mel_list, dim=0).squeeze()
 
     return audio, mel
@@ -98,7 +98,7 @@ def load_dataset(
     collect_validation_fn = partial(collect_audio_batch)
 
     data_loader = DataLoader(
-        LibriDataset(train=True),
+        VCTKDataset(train=True),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,
@@ -106,7 +106,7 @@ def load_dataset(
         pin_memory=True,
     )
     validation_loader = DataLoader(
-        LibriDataset(train=False),
+        VCTKDataset(train=False),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,

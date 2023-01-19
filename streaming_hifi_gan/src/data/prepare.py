@@ -12,8 +12,8 @@ def resample():
     """
     print("Resampling audio data...")
 
-    # DAPSのオーディオファイル
-    basepath = pathlib.Path("dataset/extracted/LJSpeech-1.1/wavs")
+    # VCTKのオーディオファイル
+    basepath = pathlib.Path("dataset/extracted/VCTK-Corpus/wav48")
     output_dir = pathlib.Path("dataset/resampled")
     for filename in basepath.rglob("*.wav"):
         sys.stdout.write("\033[1A")  # Line Up

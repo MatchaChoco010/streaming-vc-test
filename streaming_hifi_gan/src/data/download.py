@@ -10,12 +10,12 @@ def download():
     """
     print("Downloading dataset...", end="\r")
 
-    # LJSpeechのデータセット
-    url = "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"
+    # VCTKのデータセット
+    url = "http://www.udialogue.org/download/VCTK-Corpus.tar.gz"
     output_dir = "dataset/download/"
     os.makedirs(output_dir, exist_ok=True)
 
-    output_filename = "LJSpeech-1.1.tar.bz2"
+    output_filename = "VCTK-Corpus.tar.gz"
     output_path = os.path.join(output_dir, output_filename)
     urlretrieve(
         url,
@@ -35,9 +35,9 @@ def extract():
     """
     print("Extracting dataset...", end="\r")
 
-    # LJSpeechのデータセット
+    # VCTKのデータセット
     output_dir = pathlib.Path("dataset/extracted/")
     os.makedirs(output_dir, exist_ok=True)
-    for dataset in pathlib.Path("dataset/download/").rglob("*.tar.bz2"):
+    for dataset in pathlib.Path("dataset/download/").rglob("*.tar.gz"):
         print(f"extracting {dataset.name}")
         unpack_archive(dataset, output_dir)
