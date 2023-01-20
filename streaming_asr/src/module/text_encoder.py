@@ -11,7 +11,7 @@ class TextEncoder:
             "<pad>",
             "<sos>",
             "<eos>",
-            "<unk>",
+            "*",
             " ",
             "ア",
             "イ",

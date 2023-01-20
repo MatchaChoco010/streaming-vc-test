@@ -57,7 +57,6 @@ class Trainer:
         self.log = SummaryWriter(self.log_dir)
 
         self.step = 0
-        self.n_epochs = 0
         self.start_time = datetime.now()
 
         self.best_cer = {"att": 3.0, "ctc": 3.0}
@@ -122,9 +121,8 @@ class Trainer:
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
         self.model.load_state_dict(ckpt["model"])
-        # self.optimizer.load_state_dict(ckpt["optimizer"])
+        self.optimizer.load_state_dict(ckpt["optimizer"])
         self.step = ckpt["step"]
-        self.n_epochs = ckpt["n_epochs"]
         self.best_cer = ckpt["best_cer"]
         print(f"Load checkpoint from {ckpt_path}")
 
@@ -144,7 +142,6 @@ class Trainer:
                 "model": self.model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
                 "step": self.step,
-                "n_epochs": self.n_epochs,
                 "best_cer": self.best_cer,
             }
             torch.save(save_dict, ckpt_path)
@@ -154,7 +151,6 @@ class Trainer:
                 "model": self.model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
                 "step": self.step,
-                "n_epochs": self.n_epochs,
                 "best_cer": self.best_cer,
             }
             torch.save(save_dict, ckpt_path)
@@ -215,7 +211,7 @@ class Trainer:
             sys.stdout.write("\033[K")  # Clear line
         current_time = self.get_time()
         print(
-            f"[{current_time}][Epochs: {self.n_epochs}, Step: {self.step}] {msg}",
+            f"[{current_time}][Step: {self.step}] {msg}",
         )
         print(
             "[GT ]",
@@ -360,8 +356,6 @@ class Trainer:
                 self.step += 1
                 if self.step > self.max_step:
                     break
-
-            self.n_epochs += 1
         self.log.close()
 
     def validate(self):
