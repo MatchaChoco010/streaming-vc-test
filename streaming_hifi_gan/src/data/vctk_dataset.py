@@ -172,7 +172,7 @@ class VCTKDataset(IterableDataset):
 
         file_list = list(
             pathlib.Path(self.path).rglob(
-                "*.flac",
+                "*.wav",
             )
         )
         self.file_list = []
