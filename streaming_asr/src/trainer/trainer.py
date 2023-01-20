@@ -438,6 +438,9 @@ class Trainer:
                         global_step=self.step,
                     )
 
+            # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
+            torch.cuda.empty_cache()
+
         self.log.add_scalar(
             "valid/loss/ctc", sum(losses["ctc"]) / len(losses["ctc"]), self.step
         )
