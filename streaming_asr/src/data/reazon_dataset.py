@@ -5,7 +5,7 @@ from datasets import load_dataset
 from src.module.text_encoder import TextEncoder
 from torch.utils.data import Dataset, IterableDataset
 
-MAX_AUDIO_LENGTH = 24000 * 120
+MAX_AUDIO_LENGTH = 24000 * 60
 MAX_TEXT_LENGTH = 600
 
 
