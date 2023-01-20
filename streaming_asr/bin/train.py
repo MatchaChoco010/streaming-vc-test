@@ -8,7 +8,7 @@ from src.trainer.trainer import Trainer
 
 batch_size: int = 4
 ctc_weight: float = 0.5
-accumulation_steps: int = 4
+accumulation_steps: int = 8
 max_step: int = 10000001
 progress_step: int = 10
 valid_step: int = 1000
