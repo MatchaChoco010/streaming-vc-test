@@ -103,7 +103,7 @@ class Encoder(nn.Module):
 
         # # Encoderのレイヤー
         encoder_modules = []
-        for _ in range(6):
+        for _ in range(8):
             encoder_modules.append(EncoderLayer(feature_size=512))
         self.encoders = nn.ModuleList(encoder_modules)
 
