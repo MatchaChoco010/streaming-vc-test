@@ -55,7 +55,7 @@ def load_dataset(
             学習用のデータセットのローダー
     """
     data_loader = DataLoader(
-        ShuffleDataset(VCTKDataset(train=True), 512),
+        ShuffleDataset(VCTKDataset(train=True), 2048),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,

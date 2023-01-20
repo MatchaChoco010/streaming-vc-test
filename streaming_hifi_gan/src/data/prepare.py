@@ -1,9 +1,9 @@
 import os
 import pathlib
-import pickle
 import sys
 
 import torchaudio
+from pydub import AudioSegment, silence
 
 
 def resample():
@@ -27,10 +27,34 @@ def resample():
             y = torchaudio.transforms.Resample(sr, 24000)(y)
             os.makedirs(output_dir / relative_path.parent, exist_ok=True)
             torchaudio.save(
-                str(output_dir / relative_path).replace("wav", "flac"),
+                str(output_dir / relative_path),
                 y,
                 24000,
-                format="flac",
+                format="wav",
             )
         except RuntimeError:
             pass
+
+
+def remove_silence():
+    """
+    音声ファイルの無音区間を削除する
+    """
+    print("Removing silence from dataset...")
+
+    output_dir = pathlib.Path("dataset/silence-removed")
+    os.makedirs(output_dir, exist_ok=True)
+    for filename in pathlib.Path("dataset/resampled").rglob("*.wav"):
+        sys.stdout.write("\033[1A")  # Line Up
+        sys.stdout.write("\033[K")  # Clear line
+        print(f"audio silence removal {filename}")
+
+        audio = AudioSegment.from_file(filename, format="wav", frame_rate=24000)
+        chunks = silence.split_on_silence(
+            audio, min_silence_len=1000, silence_thresh=-50
+        )
+        for i, chunk in enumerate(chunks):
+            chunk.export(
+                str(output_dir / filename.name).replace(".wav", f"-{i}.wav"),
+                format="wav",
+            )

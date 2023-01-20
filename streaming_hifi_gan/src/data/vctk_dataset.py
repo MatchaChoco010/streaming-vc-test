@@ -168,7 +168,7 @@ class VCTKDataset(IterableDataset):
     """
 
     def __init__(self, train=True):
-        self.path = "dataset/resampled/"
+        self.path = "dataset/silence-removed/"
 
         file_list = list(
             pathlib.Path(self.path).rglob(
