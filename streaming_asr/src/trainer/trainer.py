@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn.functional as F
 from jiwer import cer
-from src.data.data_loader import load_dataset
+from src.data.data_loader import load_data
 from src.model.asr import ASR
 from torch import optim
 from torch.autograd import Variable
@@ -66,7 +66,7 @@ class Trainer:
             self.dev_loader,
             self.vocab_size,
             self.tokenizer,
-        ) = load_dataset(self.batch_size)
+        ) = load_data(self.batch_size)
 
         self.model = ASR(self.vocab_size).to(self.device)
 
@@ -79,13 +79,13 @@ class Trainer:
             self.load_ckpt()
 
     def fetch_data(
-        self, data: Tuple[List[str], torch.Tensor, torch.Tensor, torch.Tensor]
+        self, data: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ) -> Tuple[int, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         データセットを1ステップ分取得する
 
         Arguments:
-            data: Tuple[List[str], torch.Tensor, torch.Tensor, torch.Tensor]
+            data: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
                 データのタプル
         Returns:
             (batch_size, audio, audio_len, text, text_len):
@@ -102,7 +102,7 @@ class Trainer:
             text_len: torch.Tensor (batch)
                 テキストの各バッチの長さ
         """
-        _, audio_feature, audio_len, text = data
+        audio_feature, audio_len, text = data
         audio_feature = Variable(audio_feature, requires_grad=False).to(self.device)
         audio_len = Variable(audio_len, requires_grad=False).to(self.device)
         assert audio_feature.shape[1] >= audio_len.max()
@@ -110,7 +110,7 @@ class Trainer:
         text_len = Variable(
             torch.sum(text.argmax(dim=-1) != 0, dim=-1), requires_grad=False
         )
-        assert text.shape[1] >= text_len.max()
+        assert text.shape[1] == text_len.max()
         batch_size = audio_feature.shape[0]
         return batch_size, audio_feature, audio_len, text, text_len
 
@@ -218,15 +218,15 @@ class Trainer:
         )
         print(
             "[GT ]",
-            gt_text[:75] + "..." if len(gt_text) > 75 else gt_text,
+            gt_text[:75] + "..." if len(gt_text) > 35 else gt_text,
         )
         print(
             "[CTC]",
-            ctc_text[:75] + "..." if len(ctc_text) > 75 else ctc_text,
+            ctc_text[:75] + "..." if len(ctc_text) > 35 else ctc_text,
         )
         print(
             "[ATT]",
-            att_text[:75] + "..." if len(att_text) > 75 else att_text,
+            att_text[:75] + "..." if len(att_text) > 35 else att_text,
         )
 
     def get_time(self) -> str:
@@ -253,7 +253,6 @@ class Trainer:
         print("\n\n\n\n")
 
         ctc_loss, att_loss = None, None
-        self.n_epochs = self.step // len(self.train_loader)
         self.start_time = datetime.now()
         self.optimizer.zero_grad()
 
@@ -401,7 +400,7 @@ class Trainer:
             )
             att_text = self.tokenizer.decode(att_output[0].argmax(dim=-1).tolist())
             self.progress(
-                f"Valid step - {i+1}/{len(self.dev_loader)}",
+                f"Valid step - {i+1}/{150}",
                 gt_text,
                 ctc_text,
                 att_text,
@@ -417,7 +416,7 @@ class Trainer:
             losses["total"].append(total_loss.item())
 
             # いくつかの例をtensorboardに表示
-            if i == len(self.dev_loader) // 2:
+            if i == 150 // 2:
                 for j in range(min(len(text), 20)):
                     if self.step == 0:
                         self.log.add_text(

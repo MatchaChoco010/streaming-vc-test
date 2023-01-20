@@ -3,17 +3,16 @@ from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
-from src.data.libri_dataset import LibriDataset
+from src.data.reazon_dataset import ReazonDataset
 from src.module.text_encoder import TextEncoder
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
-import torchaudio
 
 
 def collect_audio_batch(
     batch: List[Dataset],
     vocab_size: int,
-) -> Tuple[List[str], torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     データのバッチをまとめる関数
 
@@ -23,11 +22,9 @@ def collect_audio_batch(
         vocab_size: int
             語彙のサイズ
     Returns:
-        (filenames, audio, audio_lengths, texts):
-            Tuple[List[str], torch.Tensor, torch.Tensor, torch.Tensor]
+        (audio, audio_lengths, texts):
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
 
-        filenames: List[str]
-            音声ファイルのパス
         audio: torch.Tensor (batch_size, max(audio_len))
             音声の特徴量
         audio_lengths: torch.Tensor (batch_size)
@@ -35,21 +32,19 @@ def collect_audio_batch(
         texts: torch.Tensor (batch_size, text_len, vocab_size)
             テキストのone-hot表現
     """
-    filenames, audio_list, audio_len, text_list = [], [], [], []
+    audio_list, audio_len, text_list = [], [], []
     with torch.no_grad():
         for b in batch:
-            filenames.append(str(b[0]).split("/")[-1])
-            audio, _ = torchaudio.load(str(b[0]))
-            audio = audio.squeeze(0)
+            audio = b[0].squeeze(0)
             audio_list.append(audio)
             audio_len.append(audio.shape[0])
             text_list.append(F.one_hot(torch.LongTensor(b[1]), num_classes=vocab_size))
 
-    audio_len, filenames, audio_list, text_list = zip(
+    audio_len, audio_list, text_list = zip(
         *[
-            (audio_len, filename, audio, txt)
-            for audio_len, filename, audio, txt in sorted(
-                zip(audio_len, filenames, audio_list, text_list),
+            (audio_len, audio, txt)
+            for audio_len, audio, txt in sorted(
+                zip(audio_len, audio_list, text_list),
                 reverse=True,
                 key=lambda x: x[0],
             )
@@ -66,10 +61,10 @@ def collect_audio_batch(
     texts = pad_sequence(text_list, batch_first=True)
     audio_lengths = torch.LongTensor(audio_len)
 
-    return filenames, audio, audio_lengths, texts
+    return audio, audio_lengths, texts
 
 
-def load_dataset(
+def load_data(
     batch_size: int,
 ) -> Tuple[DataLoader, DataLoader, int, TextEncoder]:
     """
@@ -93,10 +88,8 @@ def load_dataset(
     """
     text_encoder = TextEncoder()
 
-    dev_set = LibriDataset(["dev-clean"], text_encoder)
-    train_set = LibriDataset(
-        ["test-clean", "train-clean-100", "train-clean-360"], text_encoder
-    )
+    dev_set = ReazonDataset(text_encoder, train=False)
+    train_set = ReazonDataset(text_encoder, train=True)
 
     collect_data_fn = partial(
         collect_audio_batch,
@@ -106,7 +99,6 @@ def load_dataset(
     dev_set = DataLoader(
         dev_set,
         batch_size=batch_size,
-        shuffle=False,
         drop_last=False,
         collate_fn=collect_data_fn,
         pin_memory=True,
@@ -114,7 +106,6 @@ def load_dataset(
     train_set = DataLoader(
         train_set,
         batch_size=batch_size,
-        shuffle=True,
         drop_last=True,
         collate_fn=collect_data_fn,
         pin_memory=True,

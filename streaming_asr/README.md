@@ -1,10 +1,9 @@
 # Streaming ASR
 
-## 1 データセットのダウンロードと前処理
+## 1 Huggingfaceにログインする
 
 ```
-poetry run python bin/download_dataset.py
-poetry run python bin/prepare_dataset.py
+poetry run huggingface-cli login
 ```
 
 ## 2 モデルの学習
