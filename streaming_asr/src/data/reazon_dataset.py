@@ -1,4 +1,5 @@
 import pykakasi
+import torch
 import torchaudio
 from datasets import load_dataset
 from src.module.text_encoder import TextEncoder
@@ -20,8 +21,10 @@ class ReazonDataset(IterableDataset):
 
     def __iter__(self):
         for data in self.dataset:
-            audio, sr = torchaudio.load(data["audio"]["path"])
-            audio = torchaudio.transforms.Resample(sr, 24000)(audio)
+            audio = torch.from_numpy(data["audio"]["array"]).to(dtype=torch.float32)
+            audio = torchaudio.transforms.Resample(
+                data["audio"]["sampling_rate"], 24000
+            )(audio)
             result = self.kks.convert(data["transcription"])
             text = "".join([item["kana"] for item in result])
             encoded_text = self.text_encoder.encode(text)
