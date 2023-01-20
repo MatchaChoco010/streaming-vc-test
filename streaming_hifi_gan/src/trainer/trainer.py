@@ -71,7 +71,7 @@ class Trainer:
         )
         self.optimizer_d = optim.AdamW(
             itertools.chain(self.mpd.parameters(), self.msd.parameters()),
-            lr=0.0002,
+            lr=0.00002,
             betas=(0.8, 0.99),
         )
 
