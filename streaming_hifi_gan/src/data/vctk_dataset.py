@@ -185,15 +185,17 @@ class VCTKDataset(IterableDataset):
 
     def __iter__(self):
         for audio_filename in self.file_list:
-            audio, sr = torchaudio.load(audio_filename)
+            audio, sr = torchaudio.load(str(audio_filename))
 
             # 適当にずらしてSEGMENT_SIZEで刻んでいく
             audio_start = random.randint(0, SEGMENT_SIZE)
             for start in range(audio_start, audio.shape[1], SEGMENT_SIZE):
-                audio = audio[:, start : start + SEGMENT_SIZE]
+                clip_audio = audio[:, start : start + SEGMENT_SIZE]
 
-                if audio.shape[1] < SEGMENT_SIZE:
-                    audio = F.pad(audio, (0, SEGMENT_SIZE - audio.shape[1]), "constant")
+                if clip_audio.shape[1] < SEGMENT_SIZE:
+                    clip_audio = F.pad(
+                        clip_audio, (0, SEGMENT_SIZE - clip_audio.shape[1]), "constant"
+                    )
 
                 mel = torchaudio.transforms.MelSpectrogram(
                     n_fft=1024,
@@ -201,7 +203,7 @@ class VCTKDataset(IterableDataset):
                     sample_rate=24000,
                     hop_length=256,
                     win_length=1024,
-                )(audio)[:, :, : SEGMENT_SIZE // 256]
+                )(clip_audio)[:, :, : SEGMENT_SIZE // 256]
                 mel = log_melspectrogram(mel).squeeze(0)
 
-                yield audio, mel
+                yield clip_audio, mel
