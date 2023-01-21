@@ -37,10 +37,7 @@ def collect_audio_batch(
     audio_list, audio_len, text_list = [], [], []
     with torch.no_grad():
         for b in batch:
-            audio, _ = torchaudio.load(str(b[0]))
-            audio = audio.squeeze(0)
-
-            # audio = b[0].squeeze(0)
+            audio = b[0].squeeze(0)
             audio_list.append(audio)
             audio_len.append(audio.shape[0])
             text_list.append(F.one_hot(torch.LongTensor(b[1]), num_classes=vocab_size))
@@ -93,10 +90,8 @@ def load_data(
     """
     text_encoder = TextEncoder()
 
-    dev_set = LibriDataset(["dev-clean"], text_encoder)
-    train_set = LibriDataset(
-        ["test-clean", "train-clean-100", "train-clean-360"], text_encoder
-    )
+    dev_set = ReazonDataset(text_encoder, train=False)
+    train_set = ReazonDataset(text_encoder, train=True)
 
     collect_data_fn = partial(
         collect_audio_batch,
@@ -116,7 +111,6 @@ def load_data(
         drop_last=True,
         collate_fn=collect_data_fn,
         pin_memory=True,
-        shuffle=True,
     )
 
     return train_set, dev_set, text_encoder.vocab_size, text_encoder

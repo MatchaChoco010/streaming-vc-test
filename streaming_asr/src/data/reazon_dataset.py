@@ -29,7 +29,7 @@ class ReazonDataset(IterableDataset):
                 data["audio"]["sampling_rate"], 24000
             )(audio)[:MAX_AUDIO_LENGTH]
             result = self.kks.convert(data["transcription"])
-            text = "".join([item["kana"] for item in result])
+            text = "".join([item["hepburn"] for item in result]).upper()
             encoded_text = self.text_encoder.encode(text[:MAX_TEXT_LENGTH])
 
             yield audio, encoded_text
