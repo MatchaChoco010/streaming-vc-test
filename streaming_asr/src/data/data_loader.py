@@ -3,6 +3,7 @@ from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
+from src.data.libri_dataset import LibriDataset
 from src.data.reazon_dataset import ReazonDataset
 from src.module.text_encoder import TextEncoder
 from torch.nn.utils.rnn import pad_sequence
@@ -88,8 +89,10 @@ def load_data(
     """
     text_encoder = TextEncoder()
 
-    dev_set = ReazonDataset(text_encoder, train=False)
-    train_set = ReazonDataset(text_encoder, train=True)
+    dev_set = LibriDataset(["dev-clean"], text_encoder)
+    train_set = LibriDataset(
+        ["test-clean", "train-clean-100", "train-clean-360"], text_encoder
+    )
 
     collect_data_fn = partial(
         collect_audio_batch,
