@@ -28,13 +28,7 @@ class Decoder(nn.Module):
         self.embed = nn.Linear(vocab_size, 1024)
 
         # positional encoding
-        self.pe = nn.Sequential(
-            nn.Linear(1024, 1024),
-            nn.LayerNorm(1024),
-            nn.Dropout(0.1),
-            nn.ReLU(),
-            PositionalEncoding(1024),
-        )
+        self.pe = PositionalEncoding(1024)
 
         # self attention
         self.self_attention = MultiHeadAttention(

@@ -108,10 +108,8 @@ class Encoder(nn.Module):
         self.encoders = nn.ModuleList(encoder_modules)
 
         # feed forward
-        self.fc1 = nn.Linear(512, 2048)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.1)
-        self.fc2 = nn.Linear(2048, self.out_feature_dim)
+        self.fc = nn.Linear(512, self.out_feature_dim)
+        self.after_norm = nn.LayerNorm(self.out_feature_dim)
 
     def forward(
         self, input_features: torch.Tensor, input_lengths: torch.Tensor
@@ -151,10 +149,8 @@ class Encoder(nn.Module):
         for encoder_layer in self.encoders:
             xs, mask = encoder_layer(xs, mask)
 
-        # feedforwardを通す
-        xs = self.relu(self.fc1(xs))
-        xs = self.dropout(xs)
-        xs = self.fc2(xs)
+        # Normalization
+        xs = self.after_norm(self.fc(xs))
         # assert xs.shape == (batch_size, seq_length, self.out_feature_dim)
 
         # 出力の長さの計算
