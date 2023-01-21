@@ -25,39 +25,45 @@ class Decoder(nn.Module):
         self.vocab_size = vocab_size
 
         # character embedding
-        self.embed = nn.Linear(vocab_size, decoder_feature_size)
+        self.embed = nn.Linear(vocab_size, 1024)
 
         # positional encoding
-        self.pe = PositionalEncoding(decoder_feature_size)
+        self.pe = nn.Sequential(
+            nn.Linear(decoder_feature_size, 1024),
+            nn.LayerNorm(1024),
+            nn.Dropout(0.1),
+            nn.ReLU(),
+            PositionalEncoding(1024),
+        )
 
         # self attention
         self.self_attention = MultiHeadAttention(
             4,
-            decoder_feature_size,
-            decoder_feature_size,
-            decoder_feature_size,
-            decoder_feature_size,
+            1024,
+            1024,
+            1024,
+            1024,
         )
-        self.norm1 = nn.LayerNorm(decoder_feature_size)
+        self.norm1 = nn.LayerNorm(1024)
 
         # encoder-decoder attention
         self.encoder_decoder_attention = MultiHeadAttention(
             4,
-            decoder_feature_size,
-            decoder_feature_size,
-            decoder_feature_size,
-            decoder_feature_size,
+            1024,
+            1024,
+            1024,
+            1024,
         )
-        self.norm2 = nn.LayerNorm(decoder_feature_size)
+        self.norm2 = nn.LayerNorm(1024)
 
         # feed forward
-        self.fc1 = nn.Linear(decoder_feature_size, 2048)
+        self.fc1 = nn.Linear(1024, 2048)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.1)
-        self.fc2 = nn.Linear(2048, decoder_feature_size)
+        self.fc2 = nn.Linear(2048, 1024)
 
         # character probability
-        self.character_probability = nn.Linear(decoder_feature_size, vocab_size)
+        self.character_probability = nn.Linear(1024, vocab_size)
 
         # history
         self.history: torch.Tensor | None = None
