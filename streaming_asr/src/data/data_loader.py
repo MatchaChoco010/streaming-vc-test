@@ -3,6 +3,7 @@ from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
+import torchaudio
 from src.data.libri_dataset import LibriDataset
 from src.data.reazon_dataset import ReazonDataset
 from src.module.text_encoder import TextEncoder
@@ -36,7 +37,10 @@ def collect_audio_batch(
     audio_list, audio_len, text_list = [], [], []
     with torch.no_grad():
         for b in batch:
-            audio = b[0].squeeze(0)
+            audio, _ = torchaudio.load(str(b[0]))
+            audio = audio.squeeze(0)
+
+            # audio = b[0].squeeze(0)
             audio_list.append(audio)
             audio_len.append(audio.shape[0])
             text_list.append(F.one_hot(torch.LongTensor(b[1]), num_classes=vocab_size))
