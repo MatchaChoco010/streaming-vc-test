@@ -29,7 +29,7 @@ class Decoder(nn.Module):
 
         # positional encoding
         self.pe = nn.Sequential(
-            nn.Linear(decoder_feature_size, 1024),
+            nn.Linear(1024, 1024),
             nn.LayerNorm(1024),
             nn.Dropout(0.1),
             nn.ReLU(),
@@ -50,8 +50,8 @@ class Decoder(nn.Module):
         self.encoder_decoder_attention = MultiHeadAttention(
             4,
             1024,
-            1024,
-            1024,
+            decoder_feature_size,
+            decoder_feature_size,
             1024,
         )
         self.norm2 = nn.LayerNorm(1024)
