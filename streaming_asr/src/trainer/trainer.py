@@ -215,15 +215,15 @@ class Trainer:
         )
         print(
             "[GT ]",
-            gt_text[:35] + "..." if len(gt_text) > 35 else gt_text,
+            gt_text[:75] + "..." if len(gt_text) > 75 else gt_text,
         )
         print(
             "[CTC]",
-            ctc_text[:35] + "..." if len(ctc_text) > 35 else ctc_text,
+            ctc_text[:75] + "..." if len(ctc_text) > 75 else ctc_text,
         )
         print(
             "[ATT]",
-            att_text[:35] + "..." if len(att_text) > 35 else att_text,
+            att_text[:75] + "..." if len(att_text) > 75 else att_text,
         )
 
     def get_time(self) -> str:
