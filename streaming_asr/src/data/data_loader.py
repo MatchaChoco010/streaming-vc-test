@@ -116,6 +116,7 @@ def load_data(
         drop_last=True,
         collate_fn=collect_data_fn,
         pin_memory=True,
+        shuffle=True,
     )
 
     return train_set, dev_set, text_encoder.vocab_size, text_encoder
