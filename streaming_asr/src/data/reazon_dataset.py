@@ -16,9 +16,9 @@ class ReazonDataset(IterableDataset):
 
     def __init__(self, text_encoder: TextEncoder, train: bool):
         if train:
-            self.dataset = load_dataset("reazon-research/reazonspeech", "all", streaming=True)["train"].skip(2400)  # type: ignore
+            self.dataset = load_dataset("reazon-research/reazonspeech", "all", streaming=True)["train"].skip(600)  # type: ignore
         else:
-            self.dataset = load_dataset("reazon-research/reazonspeech", "all", streaming=True)["train"].take(2400)  # type: ignore
+            self.dataset = load_dataset("reazon-research/reazonspeech", "all", streaming=True)["train"].take(600)  # type: ignore
         self.kks = pykakasi.kakasi()
         self.text_encoder = text_encoder
 
