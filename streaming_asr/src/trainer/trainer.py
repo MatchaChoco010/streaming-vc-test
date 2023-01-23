@@ -395,7 +395,7 @@ class Trainer:
             )
             att_text = self.tokenizer.decode(att_output[0].argmax(dim=-1).tolist())
             self.progress(
-                f"Valid step - {i+1}/{math.ceil(600 / self.batch_size)}",
+                f"Valid step - {i+1}/{math.ceil(2400 / self.batch_size)}",
                 gt_text,
                 ctc_text,
                 att_text,
@@ -411,7 +411,7 @@ class Trainer:
             losses["total"].append(total_loss.item())
 
             # いくつかの例をtensorboardに表示
-            if i == math.ceil(600 / self.batch_size) // 2:
+            if i == math.ceil(2400 / self.batch_size) // 2:
                 for j in range(min(len(text), 20)):
                     if self.step == 0:
                         self.log.add_text(
