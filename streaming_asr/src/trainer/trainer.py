@@ -121,7 +121,7 @@ class Trainer:
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
         self.model.load_state_dict(ckpt["model"])
-        # self.optimizer.load_state_dict(ckpt["optimizer"])
+        self.optimizer.load_state_dict(ckpt["optimizer"])
         self.step = ckpt["step"]
         self.best_cer = ckpt["best_cer"]
         print(f"Load checkpoint from {ckpt_path}")
