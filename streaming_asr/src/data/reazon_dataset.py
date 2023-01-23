@@ -30,6 +30,7 @@ class ReazonDataset(IterableDataset):
             if self.train and count < 2400:
                 # skip first 2400 samples
                 count += 1
+                continue
             elif not self.train and count >= 2400:
                 # skip after 2400 samples
                 return
