@@ -12,7 +12,7 @@ class VCModel(nn.Module):
     def __init__(self):
         super(VCModel, self).__init__()
         self.layers = nn.Sequential(
-            FFTBlock(32, 512),
+            FFTBlock(128, 512),
             FFTBlock(512, 512),
             FFTBlock(512, 512),
             FFTBlock(512, 512),
