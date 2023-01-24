@@ -1,4 +1,5 @@
 dataset/
-dataset_resampled/
 output/
 test_data/
+voice_data/
+voice_data_resampled/

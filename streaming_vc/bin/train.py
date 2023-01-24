@@ -43,7 +43,7 @@ def train(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="training")
-    parser.add_argument("--dataset_dir", required=True)
+    parser.add_argument("--voice_data_dir", required=True)
     parser.add_argument("--testdata_dir", required=True)
     parser.add_argument("--feature_extractor_onnx_path", required=True)
     parser.add_argument("--encoder_onnx_path", required=True)

@@ -1,11 +1,19 @@
 # Streaming ASR
 
-## 1 データセットの前処理
+## 1 データセットの準備と前処理
 
-学習用wavファイルを入れたdatasetディレクトリを渡して次のコマンドを実行する。
+VCTKデータセットをダウンロードする。
+
 
 ```
-poetry run python bin/prepare_dataset.py --dataset_dir "dataset/methane_voice_data/emotion/normal" --output_dir "dataset_resampled"
+poetry run python bin/download_dataset.py
+poetry run python bin/prepare_dataset.py
+```
+
+学習用wavファイルを入れたvoice_dataディレクトリを渡して次のコマンドを実行する。
+
+```
+poetry run python bin/prepare_voice_data.py --voice_data_dir "voice_data/methane_voice_data/emotion/normal" --output_dir "voice_data_resampled"
 ```
 
 ## 2 モデルの学習
@@ -13,13 +21,13 @@ poetry run python bin/prepare_dataset.py --dataset_dir "dataset/methane_voice_da
 前処理したdatasetディレクトリを渡して次のコマンドを実行する。
 
 ```
-poetry run python bin/train.py --dataset_dir "dataset_resampled" --testdata_dir "test_data" --feature_extractor_onnx_path "models/feature_extractor.onnx" --encoder_onnx_path "models/encoder.onnx" --vocoder_ckpt_path "models/hifi-gan-best.pt"
+poetry run python bin/train.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --feature_extractor_onnx_path "models/feature_extractor.onnx" --encoder_onnx_path "models/encoder.onnx" --vocoder_ckpt_path "models/hifi-gan-best.pt"
 ```
 
 ## 3 hifi-ganのファインチューニング
 
 ```
-poetry run python bin/finetune.py --dataset_dir "dataset_resampled" --testdata_dir "test_data" --feature_extractor_onnx_path "models/feature_extractor.onnx" --encoder_onnx_path "models/encoder.onnx" --vocoder_ckpt_path "models/hifi-gan-best.pt" --vc_ckpt_path "output/vc/ckpt/exp-20230117-120901/ckpt-latest.pt"
+poetry run python bin/finetune.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --feature_extractor_onnx_path "models/feature_extractor.onnx" --encoder_onnx_path "models/encoder.onnx" --vocoder_ckpt_path "models/hifi-gan-best.pt" --vc_ckpt_path "output/vc/ckpt/exp-20230124-175320/ckpt-latest.pt"
 ```
 
 ## 4 ボイスモデルのパック

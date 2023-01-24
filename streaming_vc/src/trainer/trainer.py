@@ -1,15 +1,17 @@
 import os
 import pathlib
 from datetime import datetime
+from itertools import cycle
 
 import numpy as np
 import onnxruntime
 import torch
 import torch.nn.functional as F
 import torchaudio
-from src.data.data_loader import load_dataset
+from src.data.data_loader import load_data
 from src.model.generator import Generator
 from src.model.vc_model import VCModel
+from src.model.vc_discriminator import VCDiscriminator
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -64,7 +66,9 @@ class Trainer:
 
         self.best_error = 100.0
 
-        self.train_loader = load_dataset(self.dataset_dir, self.batch_size)
+        (self.train_loader, self.truth_loader, self.fake_loader) = load_data(
+            self.dataset_dir, self.batch_size
+        )
 
         self.feature_extractor = onnxruntime.InferenceSession(
             feature_extractor_onnx_path,
@@ -76,12 +80,15 @@ class Trainer:
         )
 
         self.model = VCModel().to(self.device)
+        self.discriminator = VCDiscriminator().to(self.device)
 
         self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
         self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0005)
+        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.0005)
+        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.0005)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -93,7 +100,10 @@ class Trainer:
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
         self.model.load_state_dict(ckpt["model"])
+        self.discriminator.load_state_dict(ckpt["discriminator"])
         self.optimizer.load_state_dict(ckpt["optimizer"])
+        self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
+        self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
         self.step = ckpt["step"]
         self.best_error = ckpt["best_error"]
         print(f"Load checkpoint from {ckpt_path}")
@@ -105,7 +115,10 @@ class Trainer:
         ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
         save_dict = {
             "model": self.model.state_dict(),
+            "discriminator": self.discriminator.state_dict(),
             "optimizer": self.optimizer.state_dict(),
+            "optimizer_d": self.optimizer_d.state_dict(),
+            "optimizer_g": self.optimizer_g.state_dict(),
             "step": self.step,
             "best_error": self.best_error,
         }
@@ -243,9 +256,23 @@ class Trainer:
         self.optimizer.zero_grad()
 
         losses = []
+        d_losses = []
+        g_losses = []
+
+        def cycle(iterable):
+            iterator = iter(iterable)
+            while True:
+                try:
+                    yield next(iterator)
+                except StopIteration:
+                    iterator = iter(iterable)
+
+        t_data_loader = cycle(self.truth_loader)
+        f_data_loader = cycle(self.fake_loader)
 
         while self.step < self.max_step:
             for audio, mel in self.train_loader:
+                # MSE
                 audio = torch.autograd.Variable(audio.to(device=self.device))
                 mel = torch.autograd.Variable(mel.to(device=self.device))
 
@@ -263,6 +290,40 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
 
+                # GAN
+                t_audio = next(t_data_loader)
+                f_audio = next(f_data_loader)
+
+                t_audio = torch.autograd.Variable(t_audio.to(device=self.device))
+                f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
+
+                t_feat = self.feature_extract(t_audio.squeeze(1))
+                t_feature = self.encode(t_feat)
+                t_mel_hat = self.model(t_feature)
+                t_result = self.discriminator(t_mel_hat)
+                t_loss = F.mse_loss(t_result, torch.ones_like(t_result))
+
+                f_feat = self.feature_extract(f_audio.squeeze(1))
+                f_feature = self.encode(f_feat)
+                f_mel_hat = self.model(f_feature)
+                f_result = self.discriminator(f_mel_hat)
+                f_loss_d = F.mse_loss(f_result, torch.zeros_like(f_result))
+                f_loss_g = F.mse_loss(f_result, torch.ones_like(f_result))
+
+                gan_d_loss = t_loss + f_loss_d
+                gan_g_loss = t_loss + f_loss_g
+
+                d_losses.append(gan_d_loss.item())
+                g_losses.append(gan_g_loss.item())
+
+                gan_loss = gan_d_loss + gan_g_loss
+
+                self.optimizer_d.zero_grad()
+                self.optimizer_g.zero_grad()
+                gan_loss.backward()
+                self.optimizer_d.step()
+                self.optimizer_g.step()
+
                 # ロギング
                 if self.step % self.progress_step == 0:
                     ## console
@@ -274,11 +335,19 @@ class Trainer:
                     mel_error = F.l1_loss(mel, mel_hat).item()
                     ## tensorboard
                     self.log.add_scalar(
-                        "train/loss", sum(losses) / len(losses), self.step
+                        "train/mse_loss", sum(losses) / len(losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/d_loss", sum(d_losses) / len(d_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/g_loss", sum(g_losses) / len(g_losses), self.step
                     )
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
                     # clear loss buffer
                     losses = []
+                    d_losses = []
+                    g_losses = []
 
                     if self.step % 100 == 0:
                         # 適当にmelをremapして画像として保存
