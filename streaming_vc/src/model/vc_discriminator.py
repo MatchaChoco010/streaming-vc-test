@@ -11,19 +11,25 @@ class VCDiscriminator(nn.Module):
         super(VCDiscriminator, self).__init__()
         self.layers1 = nn.Sequential(
             nn.Linear(80, 512),
+            nn.ReLU(),
             nn.Linear(512, 512),
+            nn.ReLU(),
         )
         self.conv = nn.Conv1d(512, 1, 1)
         self.layers2 = nn.Sequential(
-            nn.Linear(128, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),  #
+            nn.ReLU(),
             nn.Linear(512, 512),
+            nn.ReLU(),
             nn.Linear(512, 1),
+            nn.Sigmoid(),
         )
 
     def forward(self, xs: torch.Tensor) -> torch.Tensor:
         """
         Arguments:
-            xs: Tensor (batch, 128, 80)
+            xs: Tensor (batch, 512, 80)
                 入力のオーディオ特徴量
         Returns:
             xs: Tensor (batch, 1)

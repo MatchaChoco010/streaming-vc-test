@@ -58,7 +58,7 @@ if __name__ == "__main__":
     parser.add_argument("--exp_name", default=exp_name)
     args = parser.parse_args()
     finetune(
-        dataset_dir=args.dataset_dir,
+        dataset_dir=args.voice_data_dir,
         testdata_dir=args.testdata_dir,
         feature_extractor_onnx_path=args.feature_extractor_onnx_path,
         encoder_onnx_path=args.encoder_onnx_path,

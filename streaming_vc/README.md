@@ -18,7 +18,7 @@ poetry run python bin/prepare_voice_data.py --voice_data_dir "voice_data/methane
 
 ## 2 モデルの学習
 
-前処理したdatasetディレクトリを渡して次のコマンドを実行する。
+前処理したvoice_data_resampledディレクトリを渡して次のコマンドを実行する。
 
 ```
 poetry run python bin/train.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --feature_extractor_onnx_path "models/feature_extractor.onnx" --encoder_onnx_path "models/encoder.onnx" --vocoder_ckpt_path "models/hifi-gan-best.pt"

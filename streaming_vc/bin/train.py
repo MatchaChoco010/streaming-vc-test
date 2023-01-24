@@ -7,10 +7,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from src.trainer.trainer import Trainer
 
 # default parameters
-batch_size: int = 64
+batch_size: int = 24
 max_step: int = 10000001
 progress_step: int = 10
-valid_step: int = 1000
+valid_step: int = 500
 exp_name: str | None = None
 
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("--exp_name", default=exp_name)
     args = parser.parse_args()
     train(
-        dataset_dir=args.dataset_dir,
+        dataset_dir=args.voice_data_dir,
         testdata_dir=args.testdata_dir,
         feature_extractor_onnx_path=args.feature_extractor_onnx_path,
         encoder_onnx_path=args.encoder_onnx_path,

@@ -89,12 +89,12 @@ class VCGanTruthDataset(IterableDataset):
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
 
-            start = random.randint(0, max(0, audio.shape[1] - 256 * 128))
-            clip_audio = audio[:, start : start + 256 * 128]
+            start = random.randint(0, max(0, audio.shape[1] - 256 * 512))
+            clip_audio = audio[:, start : start + 256 * 512]
 
-            if clip_audio.shape[1] < 256 * 128:
+            if clip_audio.shape[1] < 256 * 512:
                 clip_audio = F.pad(
-                    clip_audio, (0, 256 * 128 - clip_audio.shape[1]), "constant"
+                    clip_audio, (0, 256 * 512 - clip_audio.shape[1]), "constant"
                 )
 
             yield clip_audio
@@ -109,7 +109,8 @@ class VCGanFakeDataset(IterableDataset):
         self.path = "dataset/silence-removed/"
 
         self.file_list = list(
-            str(item) for item in pathlib.Path(self.path).rglob(
+            str(item)
+            for item in pathlib.Path(self.path).rglob(
                 "*.wav",
             )
         )
@@ -126,12 +127,12 @@ class VCGanFakeDataset(IterableDataset):
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
 
-            start = random.randint(0, max(0, audio.shape[1] - 256 * 128))
-            clip_audio = audio[:, start : start + 256 * 128]
+            start = random.randint(0, max(0, audio.shape[1] - 256 * 512))
+            clip_audio = audio[:, start : start + 256 * 512]
 
-            if clip_audio.shape[1] < 256 * 128:
+            if clip_audio.shape[1] < 256 * 512:
                 clip_audio = F.pad(
-                    clip_audio, (0, 256 * 128 - clip_audio.shape[1]), "constant"
+                    clip_audio, (0, 256 * 512 - clip_audio.shape[1]), "constant"
                 )
 
             yield clip_audio
@@ -198,13 +199,13 @@ def load_data(
     )
     ts_data_loader = DataLoader(
         ShuffleDataset(VCGanTruthDataset(dataset_dir), 256),
-        batch_size=batch_size,
+        batch_size=batch_size // 2,
         drop_last=False,
         pin_memory=True,
     )
     fs_data_loader = DataLoader(
         VCGanFakeDataset(),
-        batch_size=batch_size,
+        batch_size=batch_size // 2,
         drop_last=False,
         pin_memory=True,
     )

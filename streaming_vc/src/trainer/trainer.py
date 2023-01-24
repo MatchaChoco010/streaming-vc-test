@@ -87,8 +87,8 @@ class Trainer:
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
         self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0005)
-        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.0005)
-        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.0005)
+        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.00001)
+        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.00005)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -291,6 +291,7 @@ class Trainer:
                 self.optimizer.step()
 
                 # GAN
+                ## Discriminator
                 t_audio = next(t_data_loader)
                 f_audio = next(f_data_loader)
 
@@ -301,27 +302,46 @@ class Trainer:
                 t_feature = self.encode(t_feat)
                 t_mel_hat = self.model(t_feature)
                 t_result = self.discriminator(t_mel_hat)
-                t_loss = F.mse_loss(t_result, torch.ones_like(t_result))
+                t_loss_d = F.mse_loss(t_result, torch.ones_like(t_result))
 
                 f_feat = self.feature_extract(f_audio.squeeze(1))
                 f_feature = self.encode(f_feat)
                 f_mel_hat = self.model(f_feature)
                 f_result = self.discriminator(f_mel_hat)
                 f_loss_d = F.mse_loss(f_result, torch.zeros_like(f_result))
-                f_loss_g = F.mse_loss(f_result, torch.ones_like(f_result))
 
-                gan_d_loss = t_loss + f_loss_d
-                gan_g_loss = t_loss + f_loss_g
+                gan_d_loss = t_loss_d + f_loss_d
 
                 d_losses.append(gan_d_loss.item())
-                g_losses.append(gan_g_loss.item())
-
-                gan_loss = gan_d_loss + gan_g_loss
 
                 self.optimizer_d.zero_grad()
-                self.optimizer_g.zero_grad()
-                gan_loss.backward()
+                gan_d_loss.backward()
                 self.optimizer_d.step()
+
+                ## Generator
+                t_audio = next(t_data_loader)
+                f_audio = next(f_data_loader)
+
+                t_audio = torch.autograd.Variable(t_audio.to(device=self.device))
+                f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
+
+                t_feat = self.feature_extract(t_audio.squeeze(1))
+                t_feature = self.encode(t_feat)
+                t_mel_hat = self.model(t_feature)
+                t_result = self.discriminator(t_mel_hat)
+                t_loss_g = F.mse_loss(t_result, torch.ones_like(t_result))
+
+                f_feat = self.feature_extract(f_audio.squeeze(1))
+                f_feature = self.encode(f_feat)
+                f_mel_hat = self.model(f_feature)
+                f_result = self.discriminator(f_mel_hat)
+                f_loss_g = F.mse_loss(f_result, torch.ones_like(f_result))
+
+                gan_g_loss = t_loss_g + f_loss_g
+                g_losses.append(gan_g_loss.item())
+
+                self.optimizer_g.zero_grad()
+                gan_g_loss.backward()
                 self.optimizer_g.step()
 
                 # ロギング

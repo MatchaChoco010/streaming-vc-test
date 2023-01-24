@@ -19,4 +19,4 @@ if __name__ == "__main__":
     parser.add_argument("--voice_data_dir", required=True)
     parser.add_argument("--output_dir", required=True)
     args = parser.parse_args()
-    prepare(args.dataset_dir, args.output_dir)
+    prepare(args.voice_data_dir, args.output_dir)

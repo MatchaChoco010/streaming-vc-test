@@ -4,6 +4,6 @@
       "source.organizeImports": true
   },
   "flake8.interpreter": [
-    ".venv/bin/pflake8"
+    ".venv/Scripts/pflake8.exe"
   ],
 }
