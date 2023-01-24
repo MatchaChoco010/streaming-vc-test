@@ -219,7 +219,7 @@ class Finetune:
 
         output_name = self.encoder.get_outputs()[0].name
         output = torch.empty(
-            (feat.shape[0], feat.shape[1], 32),
+            (feat.shape[0], feat.shape[1], 128),
             device=self.device,
             dtype=torch.float32,
         ).contiguous()
