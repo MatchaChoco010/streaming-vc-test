@@ -349,7 +349,7 @@ class Trainer:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Step: {self.step}] loss: {sum(losses) / len(losses)}",
+                        f"[{current_time}][Step: {self.step}] loss: {sum(losses) / len(losses)}, d_loss: {sum(d_losses) / len(d_losses)}, g_loss: {sum(g_losses) / len(g_losses)}",
                     )
                     ## mel error
                     mel_error = F.l1_loss(mel, mel_hat).item()
