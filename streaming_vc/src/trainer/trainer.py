@@ -66,7 +66,7 @@ class Trainer:
 
         self.best_error = 100.0
 
-        (self.train_loader, self.truth_loader, self.fake_loader) = load_data(
+        (self.train_loader, self.real_loader, self.fake_loader) = load_data(
             self.dataset_dir, self.batch_size
         )
 
@@ -87,8 +87,8 @@ class Trainer:
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
         self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0005)
-        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.00001)
-        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.00005)
+        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.0001)
+        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.0005)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -267,7 +267,7 @@ class Trainer:
                 except StopIteration:
                     iterator = iter(iterable)
 
-        t_data_loader = cycle(self.truth_loader)
+        r_data_loader = cycle(self.real_loader)
         f_data_loader = cycle(self.fake_loader)
 
         while self.step < self.max_step:
@@ -292,17 +292,17 @@ class Trainer:
 
                 # GAN
                 ## Discriminator
-                t_audio = next(t_data_loader)
+                r_audio = next(r_data_loader)
                 f_audio = next(f_data_loader)
 
-                t_audio = torch.autograd.Variable(t_audio.to(device=self.device))
+                r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
                 f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
 
-                t_feat = self.feature_extract(t_audio.squeeze(1))
-                t_feature = self.encode(t_feat)
-                t_mel_hat = self.model(t_feature)
-                t_result = self.discriminator(t_mel_hat)
-                t_loss_d = F.mse_loss(t_result, torch.ones_like(t_result))
+                r_feat = self.feature_extract(r_audio.squeeze(1))
+                r_feature = self.encode(r_feat)
+                r_mel_hat = self.model(r_feature)
+                r_result = self.discriminator(r_mel_hat)
+                r_loss_d = F.mse_loss(r_result, torch.ones_like(r_result))
 
                 f_feat = self.feature_extract(f_audio.squeeze(1))
                 f_feature = self.encode(f_feat)
@@ -310,7 +310,7 @@ class Trainer:
                 f_result = self.discriminator(f_mel_hat)
                 f_loss_d = F.mse_loss(f_result, torch.zeros_like(f_result))
 
-                gan_d_loss = t_loss_d + f_loss_d
+                gan_d_loss = r_loss_d + f_loss_d
 
                 d_losses.append(gan_d_loss.item())
 
@@ -319,17 +319,17 @@ class Trainer:
                 self.optimizer_d.step()
 
                 ## Generator
-                t_audio = next(t_data_loader)
+                r_audio = next(r_data_loader)
                 f_audio = next(f_data_loader)
 
-                t_audio = torch.autograd.Variable(t_audio.to(device=self.device))
+                r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
                 f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
 
-                t_feat = self.feature_extract(t_audio.squeeze(1))
-                t_feature = self.encode(t_feat)
-                t_mel_hat = self.model(t_feature)
-                t_result = self.discriminator(t_mel_hat)
-                t_loss_g = F.mse_loss(t_result, torch.ones_like(t_result))
+                r_feat = self.feature_extract(r_audio.squeeze(1))
+                r_feature = self.encode(r_feat)
+                r_mel_hat = self.model(r_feature)
+                r_result = self.discriminator(r_mel_hat)
+                r_loss_g = F.mse_loss(r_result, torch.ones_like(r_result))
 
                 f_feat = self.feature_extract(f_audio.squeeze(1))
                 f_feature = self.encode(f_feat)
@@ -337,7 +337,7 @@ class Trainer:
                 f_result = self.discriminator(f_mel_hat)
                 f_loss_g = F.mse_loss(f_result, torch.ones_like(f_result))
 
-                gan_g_loss = t_loss_g + f_loss_g
+                gan_g_loss = r_loss_g + f_loss_g
                 g_losses.append(gan_g_loss.item())
 
                 self.optimizer_g.zero_grad()

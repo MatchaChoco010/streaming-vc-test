@@ -62,9 +62,9 @@ class VCDataset(IterableDataset):
                 yield clip_audio, mel
 
 
-class VCGanTruthDataset(IterableDataset):
+class VCGanRealDataset(IterableDataset):
     """
-    VCのGANの訓練用のTruthのデータセットを扱うクラス
+    VCのGANの訓練用のRealのデータセットを扱うクラス
     """
 
     def __init__(self, dataset_dir: str):
@@ -198,7 +198,7 @@ def load_data(
         pin_memory=True,
     )
     ts_data_loader = DataLoader(
-        ShuffleDataset(VCGanTruthDataset(dataset_dir), 256),
+        ShuffleDataset(VCGanRealDataset(dataset_dir), 256),
         batch_size=batch_size // 2,
         drop_last=False,
         pin_memory=True,
