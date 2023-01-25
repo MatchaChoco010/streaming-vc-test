@@ -112,7 +112,7 @@ class Trainer:
         """
         ckptを保存する
         """
-        ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
+        # ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
         save_dict = {
             "model": self.model.state_dict(),
             "discriminator": self.discriminator.state_dict(),
@@ -120,6 +120,9 @@ class Trainer:
             "step": self.step,
             "best_error": self.best_error,
         }
+        # torch.save(save_dict, ckpt_path)
+
+        ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
         torch.save(save_dict, ckpt_path)
 
     def get_time(self) -> str:
