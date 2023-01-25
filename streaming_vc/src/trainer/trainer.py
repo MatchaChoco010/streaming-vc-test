@@ -205,7 +205,7 @@ class Trainer:
 
         output_name = self.encoder.get_outputs()[0].name
         output = torch.empty(
-            (feat.shape[0], feat.shape[1], 128),
+            (feat.shape[0], feat.shape[1], 32),
             device=self.device,
             dtype=torch.float32,
         ).contiguous()
@@ -256,8 +256,8 @@ class Trainer:
         self.optimizer.zero_grad()
 
         losses = []
-        d_losses = []
-        g_losses = []
+        # d_losses = []
+        # g_losses = []
 
         def cycle(iterable):
             iterator = iter(iterable)
@@ -290,66 +290,66 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
 
-                # GAN
-                ## Discriminator
-                r_audio = next(r_data_loader)
-                f_audio = next(f_data_loader)
+                # # GAN
+                # ## Discriminator
+                # r_audio = next(r_data_loader)
+                # f_audio = next(f_data_loader)
 
-                r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
-                f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
+                # r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
+                # f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
 
-                r_feat = self.feature_extract(r_audio.squeeze(1))
-                r_feature = self.encode(r_feat)
-                r_mel_hat = self.model(r_feature)
-                r_result = self.discriminator(r_mel_hat)
-                r_loss_d = F.mse_loss(r_result, torch.ones_like(r_result))
+                # r_feat = self.feature_extract(r_audio.squeeze(1))
+                # r_feature = self.encode(r_feat)
+                # r_mel_hat = self.model(r_feature)
+                # r_result = self.discriminator(r_mel_hat)
+                # r_loss_d = F.mse_loss(r_result, torch.ones_like(r_result))
 
-                f_feat = self.feature_extract(f_audio.squeeze(1))
-                f_feature = self.encode(f_feat)
-                f_mel_hat = self.model(f_feature)
-                f_result = self.discriminator(f_mel_hat)
-                f_loss_d = F.mse_loss(f_result, torch.zeros_like(f_result))
+                # f_feat = self.feature_extract(f_audio.squeeze(1))
+                # f_feature = self.encode(f_feat)
+                # f_mel_hat = self.model(f_feature)
+                # f_result = self.discriminator(f_mel_hat)
+                # f_loss_d = F.mse_loss(f_result, torch.zeros_like(f_result))
 
-                gan_d_loss = r_loss_d + f_loss_d
+                # gan_d_loss = r_loss_d + f_loss_d
 
-                d_losses.append(gan_d_loss.item())
+                # d_losses.append(gan_d_loss.item())
 
-                self.optimizer_d.zero_grad()
-                gan_d_loss.backward()
-                self.optimizer_d.step()
+                # self.optimizer_d.zero_grad()
+                # gan_d_loss.backward()
+                # self.optimizer_d.step()
 
-                ## Generator
-                r_audio = next(r_data_loader)
-                f_audio = next(f_data_loader)
+                # ## Generator
+                # r_audio = next(r_data_loader)
+                # f_audio = next(f_data_loader)
 
-                r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
-                f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
+                # r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
+                # f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
 
-                r_feat = self.feature_extract(r_audio.squeeze(1))
-                r_feature = self.encode(r_feat)
-                r_mel_hat = self.model(r_feature)
-                r_result = self.discriminator(r_mel_hat)
-                r_loss_g = F.mse_loss(r_result, torch.ones_like(r_result))
+                # r_feat = self.feature_extract(r_audio.squeeze(1))
+                # r_feature = self.encode(r_feat)
+                # r_mel_hat = self.model(r_feature)
+                # r_result = self.discriminator(r_mel_hat)
+                # r_loss_g = F.mse_loss(r_result, torch.ones_like(r_result))
 
-                f_feat = self.feature_extract(f_audio.squeeze(1))
-                f_feature = self.encode(f_feat)
-                f_mel_hat = self.model(f_feature)
-                f_result = self.discriminator(f_mel_hat)
-                f_loss_g = F.mse_loss(f_result, torch.ones_like(f_result))
+                # f_feat = self.feature_extract(f_audio.squeeze(1))
+                # f_feature = self.encode(f_feat)
+                # f_mel_hat = self.model(f_feature)
+                # f_result = self.discriminator(f_mel_hat)
+                # f_loss_g = F.mse_loss(f_result, torch.ones_like(f_result))
 
-                gan_g_loss = r_loss_g + f_loss_g
-                g_losses.append(gan_g_loss.item())
+                # gan_g_loss = r_loss_g + f_loss_g
+                # g_losses.append(gan_g_loss.item())
 
-                self.optimizer_g.zero_grad()
-                gan_g_loss.backward()
-                self.optimizer_g.step()
+                # self.optimizer_g.zero_grad()
+                # gan_g_loss.backward()
+                # self.optimizer_g.step()
 
                 # ロギング
                 if self.step % self.progress_step == 0:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Step: {self.step}] loss: {sum(losses) / len(losses)}, d_loss: {sum(d_losses) / len(d_losses)}, g_loss: {sum(g_losses) / len(g_losses)}",
+                        f"[{current_time}][Step: {self.step}] loss: {sum(losses) / len(losses)}",
                     )
                     ## mel error
                     mel_error = F.l1_loss(mel, mel_hat).item()
@@ -357,17 +357,17 @@ class Trainer:
                     self.log.add_scalar(
                         "train/mse_loss", sum(losses) / len(losses), self.step
                     )
-                    self.log.add_scalar(
-                        "train/d_loss", sum(d_losses) / len(d_losses), self.step
-                    )
-                    self.log.add_scalar(
-                        "train/g_loss", sum(g_losses) / len(g_losses), self.step
-                    )
+                    # self.log.add_scalar(
+                    #     "train/d_loss", sum(d_losses) / len(d_losses), self.step
+                    # )
+                    # self.log.add_scalar(
+                    #     "train/g_loss", sum(g_losses) / len(g_losses), self.step
+                    # )
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
                     # clear loss buffer
                     losses = []
-                    d_losses = []
-                    g_losses = []
+                    # d_losses = []
+                    # g_losses = []
 
                     if self.step % 100 == 0:
                         # 適当にmelをremapして画像として保存
