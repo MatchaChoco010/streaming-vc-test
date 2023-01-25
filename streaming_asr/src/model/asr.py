@@ -26,7 +26,7 @@ class ASR(nn.Module):
 
         # パラメータ
         self.input_feature_size = 240
-        self.decoder_feature_size = 128
+        self.decoder_feature_size = 16
         self.vocab_size = vocab_size
 
         # モジュール

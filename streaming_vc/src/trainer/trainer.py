@@ -87,8 +87,8 @@ class Trainer:
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
         self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0005)
-        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.0001)
-        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.0005)
+        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.00001)
+        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.00005)
 
         if exp_name is not None:
             self.load_ckpt()
