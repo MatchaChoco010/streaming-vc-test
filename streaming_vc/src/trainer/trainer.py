@@ -292,7 +292,7 @@ class Trainer:
                 r_feat = self.feature_extract(r_audio.squeeze(1))
                 r_feature = self.encode(r_feat)
                 r_feat = self.model.forward_first_layer(r_feature)
-                r_result = self.discriminator(self.grl(r_feat))
+                r_result = self.discriminator(r_feat)
                 r_loss_d = F.mse_loss(r_result, torch.ones_like(r_result))
 
                 f_feat = self.feature_extract(f_audio.squeeze(1))
