@@ -4,38 +4,23 @@ import torch.nn as nn
 
 class VCDiscriminator(nn.Module):
     """
-    MLPによるDiscriminator
+    話者のDiscriminator
     """
 
     def __init__(self):
         super(VCDiscriminator, self).__init__()
-        self.layers1 = nn.Sequential(
-            nn.Linear(80, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-        )
-        self.conv = nn.Conv1d(512, 1, 1)
-        self.layers2 = nn.Sequential(
-            nn.ReLU(),
-            nn.Linear(512, 512),  #
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1),
-            nn.Sigmoid(),
-        )
+        self.conv = nn.Conv1d(512, 1, 7)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, xs: torch.Tensor) -> torch.Tensor:
         """
         Arguments:
-            xs: Tensor (batch, 512, 80)
+            xs: Tensor (batch, seq_len, 512)
                 入力のオーディオ特徴量
         Returns:
-            xs: Tensor (batch, 1)
+            xs: Tensor (batch, seq_len, 1)
                 出力の特徴量
         """
-        xs = self.layers1(xs.transpose(1, 2))
-        xs = self.conv(xs.transpose(1, 2)).squeeze(1)
-        xs = self.layers2(xs)
+        xs = self.conv(xs.transpose(1, 2))
+        xs = self.sigmoid(xs)
         return xs

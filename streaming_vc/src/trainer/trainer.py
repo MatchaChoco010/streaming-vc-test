@@ -1,7 +1,7 @@
 import os
 import pathlib
 from datetime import datetime
-from itertools import cycle
+from itertools import chain
 
 import numpy as np
 import onnxruntime
@@ -12,6 +12,7 @@ from src.data.data_loader import load_data
 from src.model.generator import Generator
 from src.model.vc_model import VCModel
 from src.model.vc_discriminator import VCDiscriminator
+from src.module.grl import GradientReversal
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -81,14 +82,15 @@ class Trainer:
 
         self.model = VCModel().to(self.device)
         self.discriminator = VCDiscriminator().to(self.device)
+        self.grl = GradientReversal(scale=1.0).to(self.device)
 
         self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0005)
-        self.optimizer_d = optim.AdamW(self.discriminator.parameters(), lr=0.00001)
-        self.optimizer_g = optim.AdamW(self.model.parameters(), lr=0.00005)
+        self.optimizer = optim.AdamW(
+            chain(self.model.parameters(), self.discriminator.parameters()), lr=0.0005
+        )
 
         if exp_name is not None:
             self.load_ckpt()
@@ -102,8 +104,6 @@ class Trainer:
         self.model.load_state_dict(ckpt["model"])
         self.discriminator.load_state_dict(ckpt["discriminator"])
         self.optimizer.load_state_dict(ckpt["optimizer"])
-        self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
-        self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
         self.step = ckpt["step"]
         self.best_error = ckpt["best_error"]
         print(f"Load checkpoint from {ckpt_path}")
@@ -117,8 +117,6 @@ class Trainer:
             "model": self.model.state_dict(),
             "discriminator": self.discriminator.state_dict(),
             "optimizer": self.optimizer.state_dict(),
-            "optimizer_d": self.optimizer_d.state_dict(),
-            "optimizer_g": self.optimizer_g.state_dict(),
             "step": self.step,
             "best_error": self.best_error,
         }
@@ -256,8 +254,8 @@ class Trainer:
         self.optimizer.zero_grad()
 
         losses = []
-        # d_losses = []
-        # g_losses = []
+        mel_losses = []
+        spk_losses = []
 
         def cycle(iterable):
             iterator = iter(iterable)
@@ -272,7 +270,7 @@ class Trainer:
 
         while self.step < self.max_step:
             for audio, mel in self.train_loader:
-                # MSE
+                # mel MSE loss
                 audio = torch.autograd.Variable(audio.to(device=self.device))
                 mel = torch.autograd.Variable(mel.to(device=self.device))
 
@@ -281,93 +279,63 @@ class Trainer:
 
                 mel_hat = self.model(feature)
 
-                # calc loss
-                loss = F.mse_loss(mel_hat, mel)
+                mel_loss = F.mse_loss(mel_hat, mel)
+                mel_losses.append(mel_loss.item())
+
+                # speaker discriminator loss
+                r_audio = next(r_data_loader)
+                f_audio = next(f_data_loader)
+
+                r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
+                f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
+
+                r_feat = self.feature_extract(r_audio.squeeze(1))
+                r_feature = self.encode(r_feat)
+                r_feat = self.model.forward_first_layer(r_feature)
+                r_result = self.discriminator(self.grl(r_feat))
+                r_loss_d = F.mse_loss(r_result, torch.ones_like(r_result))
+
+                f_feat = self.feature_extract(f_audio.squeeze(1))
+                f_feature = self.encode(f_feat)
+                f_feat = self.model.forward_first_layer(f_feature)
+                f_result = self.discriminator(self.grl(f_feat))
+                f_loss_d = F.mse_loss(f_result, torch.zeros_like(f_result))
+
+                spk_loss = (r_loss_d + f_loss_d) / 2
+                spk_losses.append(spk_loss.item())
+
+                # step optimizer
+                loss = mel_loss + spk_loss
                 losses.append(loss.item())
 
-                # optimizer step
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-
-                # # GAN
-                # ## Discriminator
-                # r_audio = next(r_data_loader)
-                # f_audio = next(f_data_loader)
-
-                # r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
-                # f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
-
-                # r_feat = self.feature_extract(r_audio.squeeze(1))
-                # r_feature = self.encode(r_feat)
-                # r_mel_hat = self.model(r_feature)
-                # r_result = self.discriminator(r_mel_hat)
-                # r_loss_d = F.mse_loss(r_result, torch.ones_like(r_result))
-
-                # f_feat = self.feature_extract(f_audio.squeeze(1))
-                # f_feature = self.encode(f_feat)
-                # f_mel_hat = self.model(f_feature)
-                # f_result = self.discriminator(f_mel_hat)
-                # f_loss_d = F.mse_loss(f_result, torch.zeros_like(f_result))
-
-                # gan_d_loss = r_loss_d + f_loss_d
-
-                # d_losses.append(gan_d_loss.item())
-
-                # self.optimizer_d.zero_grad()
-                # gan_d_loss.backward()
-                # self.optimizer_d.step()
-
-                # ## Generator
-                # r_audio = next(r_data_loader)
-                # f_audio = next(f_data_loader)
-
-                # r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
-                # f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
-
-                # r_feat = self.feature_extract(r_audio.squeeze(1))
-                # r_feature = self.encode(r_feat)
-                # r_mel_hat = self.model(r_feature)
-                # r_result = self.discriminator(r_mel_hat)
-                # r_loss_g = F.mse_loss(r_result, torch.ones_like(r_result))
-
-                # f_feat = self.feature_extract(f_audio.squeeze(1))
-                # f_feature = self.encode(f_feat)
-                # f_mel_hat = self.model(f_feature)
-                # f_result = self.discriminator(f_mel_hat)
-                # f_loss_g = F.mse_loss(f_result, torch.ones_like(f_result))
-
-                # gan_g_loss = r_loss_g + f_loss_g
-                # g_losses.append(gan_g_loss.item())
-
-                # self.optimizer_g.zero_grad()
-                # gan_g_loss.backward()
-                # self.optimizer_g.step()
 
                 # ロギング
                 if self.step % self.progress_step == 0:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Step: {self.step}] loss: {sum(losses) / len(losses)}",
+                        f"[{current_time}][Step: {self.step}] mel loss: {sum(mel_losses) / len(mel_losses)}, spk loss: {sum(spk_losses) / len(spk_losses)}",
                     )
                     ## mel error
                     mel_error = F.l1_loss(mel, mel_hat).item()
                     ## tensorboard
                     self.log.add_scalar(
-                        "train/mse_loss", sum(losses) / len(losses), self.step
+                        "train/loss", sum(losses) / len(losses), self.step
                     )
-                    # self.log.add_scalar(
-                    #     "train/d_loss", sum(d_losses) / len(d_losses), self.step
-                    # )
-                    # self.log.add_scalar(
-                    #     "train/g_loss", sum(g_losses) / len(g_losses), self.step
-                    # )
+                    self.log.add_scalar(
+                        "train/mel_loss", sum(mel_losses) / len(mel_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/spk_loss", sum(spk_losses) / len(spk_losses), self.step
+                    )
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
                     # clear loss buffer
                     losses = []
-                    # d_losses = []
-                    # g_losses = []
+                    mel_losses = []
+                    spk_losses = []
 
                     if self.step % 100 == 0:
                         # 適当にmelをremapして画像として保存

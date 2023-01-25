@@ -89,12 +89,12 @@ class VCGanRealDataset(IterableDataset):
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
 
-            start = random.randint(0, max(0, audio.shape[1] - 256 * 512))
-            clip_audio = audio[:, start : start + 256 * 512]
+            start = random.randint(0, max(0, audio.shape[1] - SEGMENT_SIZE))
+            clip_audio = audio[:, start : start + SEGMENT_SIZE]
 
-            if clip_audio.shape[1] < 256 * 512:
+            if clip_audio.shape[1] < SEGMENT_SIZE:
                 clip_audio = F.pad(
-                    clip_audio, (0, 256 * 512 - clip_audio.shape[1]), "constant"
+                    clip_audio, (0, SEGMENT_SIZE - clip_audio.shape[1]), "constant"
                 )
 
             yield clip_audio
@@ -127,12 +127,12 @@ class VCGanFakeDataset(IterableDataset):
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
 
-            start = random.randint(0, max(0, audio.shape[1] - 256 * 512))
-            clip_audio = audio[:, start : start + 256 * 512]
+            start = random.randint(0, max(0, audio.shape[1] - SEGMENT_SIZE))
+            clip_audio = audio[:, start : start + SEGMENT_SIZE]
 
-            if clip_audio.shape[1] < 256 * 512:
+            if clip_audio.shape[1] < SEGMENT_SIZE:
                 clip_audio = F.pad(
-                    clip_audio, (0, 256 * 512 - clip_audio.shape[1]), "constant"
+                    clip_audio, (0, SEGMENT_SIZE - clip_audio.shape[1]), "constant"
                 )
 
             yield clip_audio
