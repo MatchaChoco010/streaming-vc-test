@@ -109,7 +109,7 @@ class VCGanFakeDataset(IterableDataset):
 
     def __init__(self):
         self.dataset = load_dataset(  # type: ignore
-            "reazon-research/reazonspeech", "small", streaming=True
+            "reazon-research/reazonspeech", "small"  # , streaming=True
         )["train"]
 
     def __iter__(self):
@@ -137,7 +137,7 @@ class ReazonDataset(IterableDataset):
 
     def __init__(self):
         self.dataset = load_dataset(  # type: ignore
-            "reazon-research/reazonspeech", "small", streaming=True
+            "reazon-research/reazonspeech", "small"  # , streaming=True
         )["train"]
 
     def __iter__(self):
@@ -153,7 +153,7 @@ def collect_audio_batch(batch: List[Dataset]) -> Tuple[torch.Tensor, torch.Tenso
     audio_list, audio_len = [], []
     with torch.no_grad():
         for b in batch:
-            audio = b.squeeze(0)
+            audio = b.squeeze(0)  # type: ignore
             audio_list.append(audio)
             audio_len.append(audio.shape[0])
 

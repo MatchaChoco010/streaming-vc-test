@@ -10,16 +10,15 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
         self.conv = nn.Sequential(
-            nn.Conv1d(32, 256, 5, 2),
-            nn.ReLU(),
-            nn.Conv1d(256, 256, 5, 2),
-            nn.ReLU(),
-            nn.Conv1d(256, 256, 3, 2),
-            nn.ReLU(),
-            nn.Conv1d(256, 256, 3, 2),
-            nn.ReLU(),
-            nn.Conv1d(256, 1, 3, 2),
-            nn.ReLU(),
+            nn.Conv1d(32, 512, 1, 7),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(512, 512, 1, 7),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(512, 512, 1, 7),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(512, 512, 1, 7),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(512, 1, 1, 7),
         )
         self.sigmoid = nn.Sigmoid()
 
