@@ -1,18 +1,16 @@
 import os
 import pathlib
+import copy
 from datetime import datetime
-from itertools import chain
 
-import numpy as np
-import onnxruntime
 import torch
 import torch.nn.functional as F
 import torchaudio
-from src.data.data_loader import load_data
+from src.data.vc_data_loader import load_data
+from src.model.asr_model import ASRModel
 from src.model.generator import Generator
-from src.model.vc_model import VCModel
-from src.model.vc_discriminator import VCDiscriminator
-from src.module.grl import GradientReversal
+from src.model.mel_gen_model import MelGenerateModel
+from src.model.discriminator import Discriminator
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -28,8 +26,7 @@ class Trainer:
         self,
         dataset_dir: str,
         testdata_dir: str,
-        feature_extractor_onnx_path: str,
-        encoder_onnx_path: str,
+        asr_ckpt_path: str,
         vocoder_ckpt_path: str,
         batch_size: int = 4,
         max_step: int = 10000001,
@@ -65,32 +62,32 @@ class Trainer:
         self.step = 0
         self.start_time = datetime.now()
 
-        self.best_error = 100.0
+        (
+            self.train_loader,
+            self.real_loader,
+            self.fake_loader,
+            self.spk_rm_loader,
+        ) = load_data(self.dataset_dir, self.batch_size)
 
-        (self.train_loader, self.real_loader, self.fake_loader) = load_data(
-            self.dataset_dir, self.batch_size
-        )
+        self.asr_model = ASRModel(vocab_size=32).to(self.device)
+        asr_ckpt = torch.load(asr_ckpt_path, map_location=self.device)
+        self.asr_model.load_state_dict(asr_ckpt["model"])
 
-        self.feature_extractor = onnxruntime.InferenceSession(
-            feature_extractor_onnx_path,
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
-        )
-        self.encoder = onnxruntime.InferenceSession(
-            encoder_onnx_path,
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
-        )
+        self.frozen_encoder = copy.deepcopy(self.asr_model.encoder).to(self.device)
 
-        self.model = VCModel().to(self.device)
-        self.discriminator = VCDiscriminator().to(self.device)
-        self.grl = GradientReversal(scale=1.0).to(self.device)
+        self.discriminator = Discriminator().to(self.device)
+
+        self.mel_gen_model = MelGenerateModel().to(self.device)
 
         self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer = optim.AdamW(
-            chain(self.model.parameters(), self.discriminator.parameters()), lr=0.0001
+        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.001)
+        self.optimizer_asr_g = optim.AdamW(
+            self.asr_model.encoder.parameters(), lr=0.001
         )
+        self.optimizer_mse = optim.AdamW(self.mel_gen_model.parameters(), lr=0.001)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -101,11 +98,12 @@ class Trainer:
         """
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
-        self.model.load_state_dict(ckpt["model"])
-        self.discriminator.load_state_dict(ckpt["discriminator"])
-        self.optimizer.load_state_dict(ckpt["optimizer"])
+        self.asr_model.load_state_dict(ckpt["asr_model"])
+        self.mel_gen_model.load_state_dict(ckpt["mel_gen_model"])
+        self.optimizer_asr_d.load_state_dict(ckpt["optimizer_asr_d"])
+        self.optimizer_asr_g.load_state_dict(ckpt["optimizer_asr_g"])
+        self.optimizer_mse.load_state_dict(ckpt["optimizer_mse"])
         self.step = ckpt["step"]
-        self.best_error = ckpt["best_error"]
         print(f"Load checkpoint from {ckpt_path}")
 
     def save_ckpt(self):
@@ -114,11 +112,12 @@ class Trainer:
         """
         # ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
         save_dict = {
-            "model": self.model.state_dict(),
-            "discriminator": self.discriminator.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
+            "asr_model": self.asr_model.state_dict(),
+            "mel_gen_model": self.mel_gen_model.state_dict(),
+            "optimizer_asr_d": self.optimizer_asr_d.state_dict(),
+            "optimizer_asr_g": self.optimizer_asr_g.state_dict(),
+            "optimizer_mse": self.optimizer_mse.state_dict(),
             "step": self.step,
-            "best_error": self.best_error,
         }
         # torch.save(save_dict, ckpt_path)
 
@@ -138,124 +137,18 @@ class Trainer:
         seconds = remain - (minutes * 60)
         return f"{int(days):2}days {int(hours):02}:{int(minutes):02}:{int(seconds):02}"
 
-    def feature_extract(self, audio: torch.Tensor) -> torch.Tensor:
-        """
-        音声をfeature_extractorに通してencoder用の特徴量を取得する
-        """
-        input_name = self.feature_extractor.get_inputs()[0].name
-        input_lengths_name = self.feature_extractor.get_inputs()[1].name
-        audio = audio.contiguous()
-        audio_length = (
-            torch.sum(torch.ones_like(audio), dim=-1).to(dtype=torch.int64).contiguous()
-        )
-
-        output_name = self.feature_extractor.get_outputs()[0].name
-        output = torch.empty(
-            (audio.shape[0], audio.shape[1] // 256, 240),
-            device=self.device,
-            dtype=torch.float32,
-        ).contiguous()
-
-        binding = self.feature_extractor.io_binding()
-
-        binding.bind_input(
-            name=input_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(audio.shape),
-            buffer_ptr=audio.data_ptr(),
-        )
-
-        binding.bind_input(
-            name=input_lengths_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.int64,
-            shape=tuple(audio_length.shape),
-            buffer_ptr=audio_length.data_ptr(),
-        )
-
-        binding.bind_output(
-            name=output_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(output.shape),
-            buffer_ptr=output.data_ptr(),
-        )
-
-        self.feature_extractor.run_with_iobinding(binding)
-        return output
-
-    def encode(self, feat: torch.Tensor) -> torch.Tensor:
-        """
-        encoderの特徴量をencoderに通してdecoder用の特徴量を取得する
-        """
-        input_name = self.encoder.get_inputs()[0].name
-        input_lengths_name = self.encoder.get_inputs()[1].name
-        feat = feat.contiguous()
-        feat_length = (
-            torch.sum(torch.ones((feat.shape[0], feat.shape[1])), dim=-1)
-            .to(device=self.device, dtype=torch.int64)
-            .contiguous()
-        )
-
-        output_name = self.encoder.get_outputs()[0].name
-        output = torch.empty(
-            (feat.shape[0], feat.shape[1], 32),
-            device=self.device,
-            dtype=torch.float32,
-        ).contiguous()
-
-        binding = self.encoder.io_binding()
-
-        binding.bind_input(
-            name=input_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(feat.shape),
-            buffer_ptr=feat.data_ptr(),
-        )
-
-        binding.bind_input(
-            name=input_lengths_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.int64,
-            shape=tuple(feat_length.shape),
-            buffer_ptr=feat_length.data_ptr(),
-        )
-
-        binding.bind_output(
-            name=output_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(output.shape),
-            buffer_ptr=output.data_ptr(),
-        )
-
-        self.encoder.run_with_iobinding(binding)
-        return output
-
     def run(self):
         """
         トレーニングのメソッド
         """
         print(f"Experiment name: {self.exp_name}\n")
-        print("Parameters:")
-        for k in self.model.state_dict().keys():
-            print(f"\t{k}")
         print("\n")
 
         self.start_time = datetime.now()
-        self.optimizer.zero_grad()
 
-        losses = []
         mel_losses = []
-        spk_losses = []
+        spk_d_losses = []
+        spk_g_losses = []
 
         def cycle(iterable):
             iterator = iter(iterable)
@@ -267,6 +160,7 @@ class Trainer:
 
         r_data_loader = cycle(self.real_loader)
         f_data_loader = cycle(self.fake_loader)
+        spk_rm_data_loader = cycle(self.spk_rm_loader)
 
         while self.step < self.max_step:
             for audio, mel in self.train_loader:
@@ -274,68 +168,97 @@ class Trainer:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
                 mel = torch.autograd.Variable(mel.to(device=self.device))
 
-                feat = self.feature_extract(audio.squeeze(1))
-                feature = self.encode(feat)
-
-                mel_hat = self.model(feature)
+                feat = self.asr_model.feature_extractor(audio.squeeze(1))
+                feature = self.asr_model.encoder(feat)
+                mel_hat = self.mel_gen_model(feature)
 
                 mel_loss = F.mse_loss(mel_hat, mel)
                 mel_losses.append(mel_loss.item())
 
-                # speaker discriminator loss
+                self.optimizer_mse.zero_grad()
+                mel_loss.backward()
+                self.optimizer_mse.step()
+
+                # speaker removal discriminator
                 r_audio = next(r_data_loader)
                 f_audio = next(f_data_loader)
 
                 r_audio = torch.autograd.Variable(r_audio.to(device=self.device))
                 f_audio = torch.autograd.Variable(f_audio.to(device=self.device))
 
-                r_feat = self.feature_extract(r_audio.squeeze(1))
-                r_feature = self.encode(r_feat)
-                r_feat = self.model.forward_first_layer(r_feature)
-                r_result = self.discriminator(self.grl(r_feat))
+                r_feat = self.asr_model.feature_extractor(r_audio.squeeze(1))
+                r_feature = self.asr_model.encoder(r_feat)
+                r_result = self.discriminator(r_feature)
                 r_loss_d = F.binary_cross_entropy(r_result, torch.ones_like(r_result))
 
-                f_feat = self.feature_extract(f_audio.squeeze(1))
-                f_feature = self.encode(f_feat)
-                f_feat = self.model.forward_first_layer(f_feature)
-                f_result = self.discriminator(self.grl(f_feat))
+                f_feat = self.asr_model.feature_extractor(f_audio.squeeze(1))
+                f_feature = self.asr_model.encoder(f_feat)
+                f_result = self.discriminator(f_feature)
                 f_loss_d = F.binary_cross_entropy(f_result, torch.zeros_like(f_result))
 
-                spk_loss = (r_loss_d + f_loss_d) / 2
-                spk_losses.append(spk_loss.item())
+                spk_d_loss = (r_loss_d + f_loss_d) / 2
+                spk_d_losses.append(spk_d_loss.item())
 
-                # step optimizer
-                loss = mel_loss + 5.0 * spk_loss
-                losses.append(loss.item())
+                self.optimizer_asr_d.zero_grad()
+                spk_d_loss.backward()
+                self.optimizer_asr_d.step()
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+                # speaker removal encoder
+                spk_rm_audio, _ = next(spk_rm_data_loader)
+                spk_rm_audio = torch.autograd.Variable(
+                    spk_rm_audio.to(device=self.device)
+                )
+
+                spk_rm_feat = self.asr_model.feature_extractor(spk_rm_audio.squeeze(1))
+
+                spk_rm_feature_hat = self.asr_model.encoder(spk_rm_feat)
+                spk_rm_text_hat = self.asr_model.ctc_layers(spk_rm_feature_hat)
+
+                spk_rm_result = self.discriminator(spk_rm_feature_hat)
+                mislead_loss = F.binary_cross_entropy(
+                    spk_rm_result, torch.ones_like(spk_rm_result)
+                )
+
+                spk_rm_feature = self.frozen_encoder(spk_rm_feat)
+                spk_rm_text = self.asr_model.ctc_layers(spk_rm_feature)
+
+                text_loss = F.cross_entropy(spk_rm_text_hat.transpose(1, 2), spk_rm_text.argmax(dim=-1))
+
+                spk_g_loss = mislead_loss + text_loss
+                spk_g_losses.append(spk_g_loss.item())
+
+                self.optimizer_asr_g.zero_grad()
+                spk_g_loss.backward()
+                self.optimizer_asr_g.step()
 
                 # ロギング
                 if self.step % self.progress_step == 0:
                     ## console
                     current_time = self.get_time()
                     print(
-                        f"[{current_time}][Step: {self.step}] mel loss: {sum(mel_losses) / len(mel_losses)}, spk loss: {sum(spk_losses) / len(spk_losses)}",
+                        f"[{current_time}][Step: {self.step}] mel loss: {sum(mel_losses) / len(mel_losses)}, spk d loss: {sum(spk_d_losses) / len(spk_d_losses)}, spk g loss: {sum(spk_g_losses) / len(spk_g_losses)}",
                     )
                     ## mel error
                     mel_error = F.l1_loss(mel, mel_hat).item()
                     ## tensorboard
                     self.log.add_scalar(
-                        "train/loss", sum(losses) / len(losses), self.step
-                    )
-                    self.log.add_scalar(
                         "train/mel_loss", sum(mel_losses) / len(mel_losses), self.step
                     )
                     self.log.add_scalar(
-                        "train/spk_loss", sum(spk_losses) / len(spk_losses), self.step
+                        "train/spk_d_loss",
+                        sum(spk_d_losses) / len(spk_d_losses),
+                        self.step,
+                    )
+                    self.log.add_scalar(
+                        "train/spk_g_loss",
+                        sum(spk_g_losses) / len(spk_g_losses),
+                        self.step,
                     )
                     self.log.add_scalar("train/mel_error", mel_error, self.step)
                     # clear loss buffer
-                    losses = []
                     mel_losses = []
-                    spk_losses = []
+                    spk_d_losses = []
+                    spk_g_losses = []
 
                     if self.step % 100 == 0:
                         # 適当にmelをremapして画像として保存
@@ -364,7 +287,8 @@ class Trainer:
         self.log.close()
 
     def validate(self):
-        self.model.eval()
+        self.asr_model.eval()
+        self.mel_gen_model.eval()
 
         if self.step == 0:
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
@@ -397,14 +321,16 @@ class Trainer:
                     audio = F.pad(audio, (0, 256 * 6 - audio.shape[0]))
                     audio = audio.unsqueeze(0)
 
-                    feat = self.feature_extract(audio)
+                    feat = self.asr_model.feature_extractor(audio)
 
                     if feat_history is None:
                         feat_history = feat
                     else:
                         feat_history = torch.cat([feat_history, feat], dim=1)
 
-                    feature = self.encode(feat_history[:, -history_size:, :])[:, -6:, :]
+                    feature = self.asr_model.encoder(
+                        feat_history[:, -history_size:, :]
+                    )[:, -6:, :]
                     # feature = self.encode(feat)[:, -6:, :]
 
                     if mel_history is None:
@@ -412,7 +338,9 @@ class Trainer:
                     else:
                         mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.model(mel_history[:, -history_size:, :])[:, :, -6:]
+                    mel_hat = self.mel_gen_model(mel_history[:, -history_size:, :])[
+                        :, :, -6:
+                    ]
                     # mel_hat = self.model(feature)[:, :, -6:]
 
                     if mel_hat_history is None:
@@ -443,4 +371,5 @@ class Trainer:
         self.save_ckpt()
 
         # Resume training
-        self.model.train()
+        self.asr_model.train()
+        self.mel_gen_model.train()

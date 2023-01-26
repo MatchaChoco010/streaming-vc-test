@@ -3,13 +3,13 @@ import torch.nn as nn
 from src.module.fft_block import FFTBlock
 
 
-class VCModel(nn.Module):
+class MelGenerateModel(nn.Module):
     """
     FastSpeechのFFTBlockを積み重ねたモデル
     """
 
     def __init__(self):
-        super(VCModel, self).__init__()
+        super(MelGenerateModel, self).__init__()
         self.first_layer = FFTBlock(32, 512)
         self.layers = nn.Sequential(
             FFTBlock(512, 512),

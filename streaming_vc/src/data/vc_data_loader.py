@@ -1,15 +1,17 @@
 import pathlib
 import random
-from typing import Tuple
+from typing import Tuple, List
 
 import torch
 import torch.nn.functional as F
 import torchaudio
 from datasets import load_dataset
 from src.module.log_melspectrogram import log_melspectrogram
-from torch.utils.data import DataLoader, IterableDataset
+from torch.utils.data import DataLoader, IterableDataset, Dataset
 
 SEGMENT_SIZE = 6 * 256 * 16
+MAX_AUDIO_LENGTH = 24000 * 20
+MAX_TEXT_LENGTH = 100
 
 
 class VCDataset(IterableDataset):
@@ -106,26 +108,16 @@ class VCGanFakeDataset(IterableDataset):
     """
 
     def __init__(self):
-        self.path = "dataset/silence-removed/"
-
-        self.file_list = list(
-            str(item)
-            for item in pathlib.Path(self.path).rglob(
-                "*.wav",
-            )
-        )
+        self.dataset = load_dataset(  # type: ignore
+            "reazon-research/reazonspeech", "small", streaming=True
+        )["train"]
 
     def __iter__(self):
-        """
-        Returns:
-            Generator[audio, None, None]:
-                Generator[torch.Tensor, None, None]
-
-            audio: torch.Tensor (batch_size, segments)
-                音声の特徴量
-        """
-        for item in self.file_list:
-            audio, _ = torchaudio.load(item)
+        for data in self.dataset:
+            audio = torch.from_numpy(data["audio"]["array"]).to(dtype=torch.float32)
+            audio = torchaudio.transforms.Resample(
+                data["audio"]["sampling_rate"], 24000
+            )(audio)[:MAX_AUDIO_LENGTH].unsqueeze(0)
 
             start = random.randint(0, max(0, audio.shape[1] - SEGMENT_SIZE))
             clip_audio = audio[:, start : start + SEGMENT_SIZE]
@@ -136,6 +128,45 @@ class VCGanFakeDataset(IterableDataset):
                 )
 
             yield clip_audio
+
+
+class ReazonDataset(IterableDataset):
+    """
+    ReazonSpeechのデータセットを扱うクラス
+    """
+
+    def __init__(self):
+        self.dataset = load_dataset(  # type: ignore
+            "reazon-research/reazonspeech", "small", streaming=True
+        )["train"]
+
+    def __iter__(self):
+        for data in self.dataset:
+            audio = torch.from_numpy(data["audio"]["array"]).to(dtype=torch.float32)
+            audio = torchaudio.transforms.Resample(
+                data["audio"]["sampling_rate"], 24000
+            )(audio)[:MAX_AUDIO_LENGTH]
+            yield audio
+
+
+def collect_audio_batch(batch: List[Dataset]) -> Tuple[torch.Tensor, torch.Tensor]:
+    audio_list, audio_len = [], []
+    with torch.no_grad():
+        for b in batch:
+            audio = b.squeeze(0)
+            audio_list.append(audio)
+            audio_len.append(audio.shape[0])
+
+    max_audio_len = max(max(audio_len), 256 * 64)
+    audio_items = []
+    for audio in audio_list:
+        audio_items.append(
+            F.pad(audio, (0, max_audio_len - audio.shape[0]), "constant", 0)
+        )
+    audio = torch.stack(audio_items, dim=0)
+    audio_lengths = torch.LongTensor(audio_len)
+
+    return audio, audio_lengths
 
 
 class ShuffleDataset(torch.utils.data.IterableDataset):
@@ -171,7 +202,7 @@ class ShuffleDataset(torch.utils.data.IterableDataset):
 def load_data(
     dataset_dir: str,
     batch_size: int,
-) -> Tuple[DataLoader, DataLoader, DataLoader]:
+) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     """
     DataLoaderを作成する関数
 
@@ -209,5 +240,12 @@ def load_data(
         drop_last=False,
         pin_memory=True,
     )
+    spk_rm_data_loader = DataLoader(
+        ReazonDataset(),
+        batch_size=batch_size // 12,
+        drop_last=False,
+        collate_fn=collect_audio_batch,
+        pin_memory=True,
+    )
 
-    return data_loader, ts_data_loader, fs_data_loader
+    return data_loader, ts_data_loader, fs_data_loader, spk_rm_data_loader
