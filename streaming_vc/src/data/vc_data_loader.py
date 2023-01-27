@@ -10,8 +10,7 @@ from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, IterableDataset, Dataset
 
 SEGMENT_SIZE = 6 * 256 * 16
-MAX_AUDIO_LENGTH = 24000 * 20
-MAX_TEXT_LENGTH = 100
+MAX_AUDIO_LENGTH = 6 * 256 * 128
 
 
 class VCDataset(IterableDataset):
@@ -91,12 +90,12 @@ class VCGanRealDataset(IterableDataset):
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
 
-            start = random.randint(0, max(0, audio.shape[1] - SEGMENT_SIZE))
-            clip_audio = audio[:, start : start + SEGMENT_SIZE]
+            start = random.randint(0, max(0, audio.shape[1] - MAX_AUDIO_LENGTH))
+            clip_audio = audio[:, start : start + MAX_AUDIO_LENGTH]
 
-            if clip_audio.shape[1] < SEGMENT_SIZE:
+            if clip_audio.shape[1] < MAX_AUDIO_LENGTH:
                 clip_audio = F.pad(
-                    clip_audio, (0, SEGMENT_SIZE - clip_audio.shape[1]), "constant"
+                    clip_audio, (0, MAX_AUDIO_LENGTH - clip_audio.shape[1]), "constant"
                 )
 
             yield clip_audio
@@ -117,14 +116,14 @@ class VCGanFakeDataset(IterableDataset):
             audio = torch.from_numpy(data["audio"]["array"]).to(dtype=torch.float32)
             audio = torchaudio.transforms.Resample(
                 data["audio"]["sampling_rate"], 24000
-            )(audio)[:MAX_AUDIO_LENGTH].unsqueeze(0)
+            )(audio).unsqueeze(0)
 
-            start = random.randint(0, max(0, audio.shape[1] - SEGMENT_SIZE))
-            clip_audio = audio[:, start : start + SEGMENT_SIZE]
+            start = random.randint(0, max(0, audio.shape[1] - MAX_AUDIO_LENGTH))
+            clip_audio = audio[:, start : start + MAX_AUDIO_LENGTH]
 
-            if clip_audio.shape[1] < SEGMENT_SIZE:
+            if clip_audio.shape[1] < MAX_AUDIO_LENGTH:
                 clip_audio = F.pad(
-                    clip_audio, (0, SEGMENT_SIZE - clip_audio.shape[1]), "constant"
+                    clip_audio, (0, MAX_AUDIO_LENGTH - clip_audio.shape[1]), "constant"
                 )
 
             yield clip_audio
@@ -145,7 +144,13 @@ class ReazonDataset(IterableDataset):
             audio = torch.from_numpy(data["audio"]["array"]).to(dtype=torch.float32)
             audio = torchaudio.transforms.Resample(
                 data["audio"]["sampling_rate"], 24000
-            )(audio)[:MAX_AUDIO_LENGTH]
+            )(audio[: MAX_AUDIO_LENGTH * 2])[:MAX_AUDIO_LENGTH]
+            audio = audio.unsqueeze(0)
+
+            if audio.shape[1] < MAX_AUDIO_LENGTH:
+                audio = F.pad(audio, (0, MAX_AUDIO_LENGTH - audio.shape[1]), "constant")
+
+            audio = audio.squeeze(0)
             yield audio
 
 
@@ -232,19 +237,19 @@ def load_data(
     )
     ts_data_loader = DataLoader(
         ShuffleDataset(VCGanRealDataset(dataset_dir), 256),
-        batch_size=batch_size // 2,
+        batch_size=max(batch_size // 4, 1),
         drop_last=False,
         pin_memory=True,
     )
     fs_data_loader = DataLoader(
         VCGanFakeDataset(),
-        batch_size=batch_size // 2,
+        batch_size=max(batch_size // 4, 1),
         drop_last=False,
         pin_memory=True,
     )
     spk_rm_data_loader = DataLoader(
         ReazonDataset(),
-        batch_size=batch_size // 12,
+        batch_size=max(batch_size // 8, 1),
         drop_last=False,
         collate_fn=collect_audio_batch,
         pin_memory=True,

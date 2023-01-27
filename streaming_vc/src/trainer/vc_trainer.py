@@ -84,11 +84,11 @@ class Trainer:
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer_asr_d = optim.Adam(self.discriminator.parameters(), lr=0.001)
+        self.optimizer_asr_d = optim.Adam(self.discriminator.parameters(), lr=0.0001)
         self.optimizer_asr_g = optim.Adam(
-            self.asr_model.encoder.parameters(), lr=0.0005
+            self.asr_model.encoder.parameters(), lr=0.0001
         )
-        self.optimizer_mse = optim.Adam(self.mel_gen_model.parameters(), lr=0.0002)
+        self.optimizer_mse = optim.Adam(self.mel_gen_model.parameters(), lr=0.002)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -137,38 +137,6 @@ class Trainer:
         minutes = remain // 60
         seconds = remain - (minutes * 60)
         return f"{int(days):2}days {int(hours):02}:{int(minutes):02}:{int(seconds):02}"
-
-    def text_decode(self, text: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        テキストをデコードする
-        各batchでrepeatとpadを無視して連結する
-        """
-        text = text.argmax(dim=-1)
-        batch_vocabs = []
-        for batch in text:
-            vocabs = []
-            for t, index in enumerate(batch):
-                if index == 0 or (t > 0 and index == batch[t - 1]):  # <pad> or repeat
-                    continue
-                elif index == 2:  # <eox>
-                    break
-                else:
-                    vocabs.append(index)
-            batch_vocabs.append(vocabs)
-
-        max_len = max([len(batch) for batch in batch_vocabs])
-        lengths = [len(batch) for batch in batch_vocabs]
-        vocab_items = []
-        for item in batch_vocabs:
-            vocab_items.append(item + [0] * (max_len - len(item)))
-        vocab = (
-            torch.Tensor(vocab_items)
-            .to(dtype=torch.long, device=self.device)
-            .contiguous()
-        )
-        max_lengths = torch.Tensor(lengths).to(dtype=torch.long, device=self.device)
-
-        return vocab, max_lengths
 
     def run(self):
         """
@@ -230,7 +198,7 @@ class Trainer:
                 f_result = self.discriminator(f_feature)
                 f_loss_d = F.binary_cross_entropy(f_result, torch.zeros_like(f_result))
 
-                spk_d_loss = (r_loss_d + f_loss_d) / 2
+                spk_d_loss = r_loss_d + f_loss_d
                 spk_d_losses.append(spk_d_loss.item())
 
                 self.optimizer_asr_d.zero_grad()
@@ -247,13 +215,7 @@ class Trainer:
 
                 spk_rm_feature_hat = self.asr_model.encoder(spk_rm_feat)
                 spk_rm_text_hat = self.asr_model.ctc_layers(spk_rm_feature_hat)
-                spk_rm_text_hat = spk_rm_text_hat.log_softmax(dim=-1).transpose(0, 1)
-                text_len_hat = (
-                    torch.ones(spk_rm_text_hat.shape[1]).to(
-                        dtype=torch.int, device=self.device
-                    )
-                    * spk_rm_text_hat.shape[0]
-                )
+                spk_rm_text_hat = spk_rm_text_hat.log_softmax(dim=2)
 
                 spk_rm_result = self.discriminator(spk_rm_feature_hat)
                 mislead_loss = F.binary_cross_entropy(
@@ -262,13 +224,10 @@ class Trainer:
 
                 spk_rm_feature = self.frozen_encoder(spk_rm_feat)
                 spk_rm_text = self.asr_model.ctc_layers(spk_rm_feature)
-                spk_rm_text, text_len = self.text_decode(spk_rm_text)
 
-                text_loss = F.ctc_loss(
-                    spk_rm_text_hat, spk_rm_text, text_len_hat, text_len
-                )
+                text_loss = F.cross_entropy(spk_rm_text_hat, spk_rm_text.argmax(dim=1))
 
-                spk_g_loss = mislead_loss + 5.0 * text_loss
+                spk_g_loss = mislead_loss + 2.0 * text_loss
                 spk_g_losses.append(spk_g_loss.item())
 
                 self.optimizer_asr_g.zero_grad()

@@ -7,10 +7,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from src.trainer.vc_trainer import Trainer
 
 # default parameters
-batch_size: int = 24
+batch_size: int = 16
 max_step: int = 10000001
-progress_step: int = 5
-valid_step: int = 500
+progress_step: int = 10
+valid_step: int = 1000
 exp_name: str | None = None
 
 
