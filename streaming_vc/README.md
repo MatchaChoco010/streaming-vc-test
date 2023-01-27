@@ -8,21 +8,27 @@
 poetry run python bin/prepare_voice_data.py --voice_data_dir "voice_data/methane_voice_data/emotion/normal" --output_dir "voice_data_resampled"
 ```
 
-## 2 モデルの学習
+## 2 特徴量抽出期からの話者情報の取り除きのファインチューニング
 
 前処理したvoice_data_resampledディレクトリを渡して次のコマンドを実行する。
 
 ```
-poetry run python bin/vc_train.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --asr_ckpt_path "models/asr-best.pt" --vocoder_ckpt_path "models/hifi-gan-best.pt"
+poetry run python bin/asr_finetune.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --asr_ckpt_path "models/asr-best.pt" --vocoder_ckpt_path "models/hifi-gan-best.pt"
 ```
 
-## 3 hifi-ganのファインチューニング
+## 3 モデルの学習
 
 ```
-poetry run python bin/finetune.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --vocoder_ckpt_path "models/hifi-gan-best.pt" --vc_ckpt_path "output/vc/ckpt/exp-20230127-070154/ckpt-latest.pt"
+poetry run python bin/vc_train.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --asr_ckpt_path "output/asr-finetune/ckpt/exp-XXXXXXXXX-XXXXXX/ckpt-latest.pt" --vocoder_ckpt_path "models/hifi-gan-best.pt"
 ```
 
-## 4 ボイスモデルのパック
+## 4 hifi-ganのファインチューニング
+
+```
+poetry run python bin/finetune.py --voice_data_dir "voice_data_resampled" --testdata_dir "test_data" --vocoder_ckpt_path "models/hifi-gan-best.pt" --vc_ckpt_path "output/vc/ckpt/exp-XXXXXXXX-XXXXXX/ckpt-latest.pt"
+```
+
+## 5 ボイスモデルのパック
 
 次のコマンドでボイスモデルをパックする
 
