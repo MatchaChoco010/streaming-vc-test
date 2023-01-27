@@ -84,11 +84,13 @@ class Trainer:
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer_asr_d = optim.Adam(self.discriminator.parameters(), lr=0.0001)
-        self.optimizer_asr_g = optim.Adam(
-            self.asr_model.encoder.parameters(), lr=0.0001
+        self.optimizer_asr_d = optim.AdamW(
+            self.discriminator.parameters(), lr=0.0005, weight_decay=2.0
         )
-        self.optimizer_mse = optim.Adam(self.mel_gen_model.parameters(), lr=0.002)
+        self.optimizer_asr_g = optim.AdamW(
+            self.asr_model.encoder.parameters(), lr=0.0005, weight_decay=2.0
+        )
+        self.optimizer_mse = optim.AdamW(self.mel_gen_model.parameters(), lr=0.001)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -227,7 +229,7 @@ class Trainer:
 
                 text_loss = F.cross_entropy(spk_rm_text_hat, spk_rm_text.argmax(dim=1))
 
-                spk_g_loss = mislead_loss + 2.0 * text_loss
+                spk_g_loss = mislead_loss + 5.0 * text_loss
                 spk_g_losses.append(spk_g_loss.item())
 
                 self.optimizer_asr_g.zero_grad()
