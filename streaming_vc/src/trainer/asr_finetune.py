@@ -21,7 +21,6 @@ class Trainer:
     def __init__(
         self,
         dataset_dir: str,
-        testdata_dir: str,
         asr_ckpt_path: str,
         batch_size: int = 4,
         max_step: int = 10000001,
@@ -37,7 +36,6 @@ class Trainer:
                 再開する実験名。Noneの場合は新しい実験が生成される。
         """
         self.dataset_dir = dataset_dir
-        self.testdata_dir = testdata_dir
         self.batch_size = batch_size
         self.max_step = max_step
         self.progress_step = progress_step
