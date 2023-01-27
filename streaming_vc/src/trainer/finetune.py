@@ -4,15 +4,15 @@ import pathlib
 from datetime import datetime
 
 import numpy as np
-import onnxruntime
 import torch
 import torch.nn.functional as F
 import torchaudio
-from src.data.data_loader import load_dataset
+from src.data.finetune_data_loader import load_data
+from src.model.asr_model import ASRModel
 from src.model.generator import Generator
 from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
-from src.model.vc_model import VCModel
+from src.model.mel_gen_model import MelGenerateModel
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
@@ -23,15 +23,13 @@ SEGMENT_SIZE = 6 * 256 * 16
 
 class Finetune:
     """
-    HiFi-GANのfine tuningとvcの訓練を進めるクラス
+    HiFi-GANのfine tuningをするクラス
     """
 
     def __init__(
         self,
         dataset_dir: str,
         testdata_dir: str,
-        feature_extractor_onnx_path: str,
-        encoder_onnx_path: str,
         vc_ckpt_path: str,
         vocoder_ckpt_path: str,
         batch_size: int = 4,
@@ -66,20 +64,15 @@ class Finetune:
 
         self.best_error = 100.0
 
-        self.train_loader = load_dataset(self.dataset_dir, self.batch_size)
+        self.train_loader = load_data(self.dataset_dir, self.batch_size)
 
-        self.feature_extractor = onnxruntime.InferenceSession(
-            feature_extractor_onnx_path,
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
-        )
-        self.encoder = onnxruntime.InferenceSession(
-            encoder_onnx_path,
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
-        )
-
-        self.vc_model = VCModel().to(self.device)
-        vc_ckpt = torch.load(vc_ckpt_path, map_location=self.device)
-        self.vc_model.load_state_dict(vc_ckpt["model"])
+        self.asr_model = ASRModel(vocab_size=32).to(self.device)
+        self.mel_gen_model = MelGenerateModel().to(self.device)
+        asr_ckpt = torch.load(vc_ckpt_path, map_location=self.device)
+        self.asr_model.load_state_dict(asr_ckpt["asr_model"])
+        self.mel_gen_model.load_state_dict(asr_ckpt["mel_gen_model"])
+        self.asr_model.eval()
+        self.mel_gen_model.eval()
 
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
 
@@ -112,7 +105,8 @@ class Finetune:
         """
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
-        self.vc_model.load_state_dict(ckpt["vc_model"])
+        self.asr_model.load_state_dict(ckpt["asr_model"])
+        self.mel_gen_model.load_state_dict(ckpt["mel_gen_model"])
         self.generator.load_state_dict(ckpt["generator"])
         self.mpd.load_state_dict(ckpt["mpd"])
         self.msd.load_state_dict(ckpt["msd"])
@@ -126,10 +120,11 @@ class Finetune:
         """
         ckptを保存する
         """
-        ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
+        # ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
         latest_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         save_dict = {
-            "vc_model": self.vc_model.state_dict(),
+            "asr_model": self.asr_model.state_dict(),
+            "mel_gen_model": self.mel_gen_model.state_dict(),
             "generator": self.generator.state_dict(),
             "mpd": self.mpd.state_dict(),
             "msd": self.msd.state_dict(),
@@ -154,108 +149,6 @@ class Finetune:
         seconds = remain - (minutes * 60)
         return f"{int(days):2}days {int(hours):02}:{int(minutes):02}:{int(seconds):02}"
 
-    def feature_extract(self, audio: torch.Tensor) -> torch.Tensor:
-        """
-        音声をfeature_extractorに通してencoder用の特徴量を取得する
-        """
-        input_name = self.feature_extractor.get_inputs()[0].name
-        input_lengths_name = self.feature_extractor.get_inputs()[1].name
-        audio = audio.contiguous()
-        audio_length = (
-            torch.sum(torch.ones_like(audio), dim=-1).to(dtype=torch.int64).contiguous()
-        )
-
-        output_name = self.feature_extractor.get_outputs()[0].name
-        output = torch.empty(
-            (audio.shape[0], audio.shape[1] // 256, 240),
-            device=self.device,
-            dtype=torch.float32,
-        ).contiguous()
-
-        binding = self.feature_extractor.io_binding()
-
-        binding.bind_input(
-            name=input_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(audio.shape),
-            buffer_ptr=audio.data_ptr(),
-        )
-
-        binding.bind_input(
-            name=input_lengths_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.int64,
-            shape=tuple(audio_length.shape),
-            buffer_ptr=audio_length.data_ptr(),
-        )
-
-        binding.bind_output(
-            name=output_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(output.shape),
-            buffer_ptr=output.data_ptr(),
-        )
-
-        self.feature_extractor.run_with_iobinding(binding)
-        return output
-
-    def encode(self, feat: torch.Tensor) -> torch.Tensor:
-        """
-        encoderの特徴量をencoderに通してdecoder用の特徴量を取得する
-        """
-        input_name = self.encoder.get_inputs()[0].name
-        input_lengths_name = self.encoder.get_inputs()[1].name
-        feat = feat.contiguous()
-        feat_length = (
-            torch.sum(torch.ones((feat.shape[0], feat.shape[1])), dim=-1)
-            .to(device=self.device, dtype=torch.int64)
-            .contiguous()
-        )
-
-        output_name = self.encoder.get_outputs()[0].name
-        output = torch.empty(
-            (feat.shape[0], feat.shape[1], 128),
-            device=self.device,
-            dtype=torch.float32,
-        ).contiguous()
-
-        binding = self.encoder.io_binding()
-
-        binding.bind_input(
-            name=input_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(feat.shape),
-            buffer_ptr=feat.data_ptr(),
-        )
-
-        binding.bind_input(
-            name=input_lengths_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.int64,
-            shape=tuple(feat_length.shape),
-            buffer_ptr=feat_length.data_ptr(),
-        )
-
-        binding.bind_output(
-            name=output_name,
-            device_type="cuda",
-            device_id=0,
-            element_type=np.float32,
-            shape=tuple(output.shape),
-            buffer_ptr=output.data_ptr(),
-        )
-
-        self.encoder.run_with_iobinding(binding)
-        return output
-
     def run(self):
         """
         トレーニングのメソッド
@@ -278,10 +171,10 @@ class Finetune:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
                 mel = torch.autograd.Variable(mel.to(device=self.device))
 
-                feat = self.feature_extract(audio.squeeze(1))
-                feature = self.encode(feat)
+                feat = self.asr_model.feature_extractor(audio.squeeze(1))
+                feature = self.asr_model.encoder(feat)
 
-                mel_hat = self.vc_model(feature)
+                mel_hat = self.mel_gen_model(feature)
 
                 # HiFi-GAN finetune
                 audio_g_hat = self.generator(mel_hat)
@@ -398,7 +291,6 @@ class Finetune:
         self.log.close()
 
     def validate(self):
-        self.vc_model.eval()
         self.generator.eval()
 
         if self.step == 0:
@@ -432,21 +324,23 @@ class Finetune:
                     audio = F.pad(audio, (0, 256 * 6 - audio.shape[0]))
                     audio = audio.unsqueeze(0)
 
-                    feat = self.feature_extract(audio)
+                    feat = self.asr_model.feature_extractor(audio)
 
                     if feat_history is None:
                         feat_history = feat
                     else:
                         feat_history = torch.cat([feat_history, feat], dim=1)
 
-                    feature = self.encode(feat_history[:, -history_size:, :])[:, -6:, :]
+                    feature = self.asr_model.encoder(
+                        feat_history[:, -history_size:, :]
+                    )[:, -6:, :]
 
                     if mel_history is None:
                         mel_history = feature
                     else:
                         mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.vc_model(mel_history[:, -history_size:, :])[
+                    mel_hat = self.mel_gen_model(mel_history[:, -history_size:, :])[
                         :, :, -6:
                     ]
 
@@ -478,5 +372,4 @@ class Finetune:
         self.save_ckpt()
 
         # Resume training
-        self.vc_model.train()
         self.generator.train()

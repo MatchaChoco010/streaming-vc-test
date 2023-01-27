@@ -10,15 +10,13 @@ from src.trainer.finetune import Finetune
 batch_size: int = 4
 max_step: int = 10000001
 progress_step: int = 10
-valid_step: int = 100
+valid_step: int = 500
 exp_name: str | None = None
 
 
 def finetune(
     dataset_dir: str,
     testdata_dir: str,
-    feature_extractor_onnx_path: str,
-    encoder_onnx_path: str,
     vc_ckpt_path: str,
     vocoder_ckpt_path: str,
     batch_size: int,
@@ -30,8 +28,6 @@ def finetune(
     ft = Finetune(
         dataset_dir=dataset_dir,
         testdata_dir=testdata_dir,
-        feature_extractor_onnx_path=feature_extractor_onnx_path,
-        encoder_onnx_path=encoder_onnx_path,
         vc_ckpt_path=vc_ckpt_path,
         vocoder_ckpt_path=vocoder_ckpt_path,
         batch_size=batch_size,
@@ -47,8 +43,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="training")
     parser.add_argument("--voice_data_dir", required=True)
     parser.add_argument("--testdata_dir", required=True)
-    parser.add_argument("--feature_extractor_onnx_path", required=True)
-    parser.add_argument("--encoder_onnx_path", required=True)
     parser.add_argument("--vc_ckpt_path", required=True)
     parser.add_argument("--vocoder_ckpt_path", required=True)
     parser.add_argument("--batch_size", default=batch_size)
@@ -60,8 +54,6 @@ if __name__ == "__main__":
     finetune(
         dataset_dir=args.voice_data_dir,
         testdata_dir=args.testdata_dir,
-        feature_extractor_onnx_path=args.feature_extractor_onnx_path,
-        encoder_onnx_path=args.encoder_onnx_path,
         vc_ckpt_path=args.vc_ckpt_path,
         vocoder_ckpt_path=args.vocoder_ckpt_path,
         batch_size=args.batch_size,

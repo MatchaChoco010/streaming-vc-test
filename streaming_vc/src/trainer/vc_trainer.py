@@ -86,7 +86,7 @@ class Trainer:
 
         self.optimizer_asr_d = optim.Adam(self.discriminator.parameters(), lr=0.001)
         self.optimizer_asr_g = optim.Adam(
-            self.asr_model.encoder.parameters(), lr=0.00001
+            self.asr_model.encoder.parameters(), lr=0.0005
         )
         self.optimizer_mse = optim.Adam(self.mel_gen_model.parameters(), lr=0.0002)
 
@@ -168,7 +168,7 @@ class Trainer:
         )
         max_lengths = torch.Tensor(lengths).to(dtype=torch.long, device=self.device)
 
-        return vocab,  max_lengths
+        return vocab, max_lengths
 
     def run(self):
         """

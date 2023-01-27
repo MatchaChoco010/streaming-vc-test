@@ -212,8 +212,8 @@ def load_data(
         batch_size: int
             バッチサイズ
     Returns:
-        (data_loader, ts_data_loader, fs_data_loader):
-            Tuple[DataLoader, DataLoader, DataLoader]
+        (data_loader, ts_data_loader, fs_data_loader, spk_rm_data_loader):
+            Tuple[DataLoader, DataLoader, DataLoader, DataLoader]
 
         data_loader: DataLoader
             学習用のデータセットのローダー
@@ -221,6 +221,8 @@ def load_data(
             GAN学習用の正データセットのローダー
         fs_data_loader: DataLoader
             GAN学習用の偽データセットのローダー
+        spk_rm_data_loader: DataLoader
+            話者情報取り除きのための偽データセットのローダー
     """
     data_loader = DataLoader(
         ShuffleDataset(VCDataset(dataset_dir), 256),
