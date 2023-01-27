@@ -32,8 +32,8 @@ class Trainer:
         progress_step: int = 10,
         valid_step: int = 5000,
         exp_name: str | None = None,
-        ckpt_dir: str = "output/ckpt",
-        log_dir: str = "output/log",
+        ckpt_dir: str = "output/vc/ckpt",
+        log_dir: str = "output/vc/log",
     ):
         """
         Arguments:

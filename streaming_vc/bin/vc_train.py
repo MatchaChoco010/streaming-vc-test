@@ -37,8 +37,8 @@ def train(
         progress_step=progress_step,
         valid_step=valid_step,
         exp_name=exp_name,
-        ckpt_dir=args.ckpt_dir,
-        log_dir=args.log_dir,
+        ckpt_dir=ckpt_dir,
+        log_dir=log_dir,
     )
     trainer.run()
 
