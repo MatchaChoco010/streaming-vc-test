@@ -73,11 +73,9 @@ class Trainer:
 
         self.discriminator = Discriminator().to(self.device)
 
-        self.optimizer_asr_d = optim.AdamW(
-            self.discriminator.parameters(), lr=0.0005, weight_decay=2.0
-        )
+        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.0005)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.0005, weight_decay=2.0
+            self.asr_model.encoder.parameters(), lr=0.0005
         )
 
         if exp_name is not None:
