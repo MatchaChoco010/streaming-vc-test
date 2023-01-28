@@ -73,7 +73,7 @@ class Trainer:
 
         self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.0008)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.0001
+            self.asr_model.encoder.parameters(), lr=0.000002
         )
 
         if exp_name is not None:
