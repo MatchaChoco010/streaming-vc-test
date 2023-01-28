@@ -13,10 +13,12 @@ class Discriminator(nn.Module):
             nn.Conv1d(32, 512, kernel_size=7),
             nn.LeakyReLU(0.2),
             nn.Conv1d(512, 512, kernel_size=7),
+            nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2),
             nn.Conv1d(512, 512, kernel_size=5),
             nn.LeakyReLU(0.2),
             nn.Conv1d(512, 512, kernel_size=5),
+            nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2),
             nn.Conv1d(512, 1, kernel_size=3),
         )

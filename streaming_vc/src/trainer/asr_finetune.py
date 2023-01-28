@@ -73,7 +73,7 @@ class Trainer:
 
         self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.001)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.0000025
+            self.asr_model.encoder.parameters(), lr=0.00001
         )
 
         if exp_name is not None:
@@ -172,7 +172,6 @@ class Trainer:
 
                 self.optimizer_asr_d.zero_grad()
                 spk_d_loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 1.0)
                 self.optimizer_asr_d.step()
 
                 # speaker removal encoder
