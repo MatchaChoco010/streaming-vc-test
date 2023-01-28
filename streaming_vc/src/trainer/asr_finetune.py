@@ -170,6 +170,11 @@ class Trainer:
 
         while self.step < self.max_step:
             for spk_rm_audio, _ in self.spk_rm_loader:
+
+                if self.step % 10 == 0:
+                    self.scheduler_d.step()
+                    self.scheduler_g.step()
+
                 # speaker removal discriminator
                 r_audio = next(r_data_loader)
                 f_audio = next(f_data_loader)
@@ -258,10 +263,6 @@ class Trainer:
                     spk_g_losses = []
                     spk_g_misleading_losses = []
                     spk_g_text_losses = []
-
-                if self.step % 10 == 0:
-                    self.scheduler_d.step()
-                    self.scheduler_g.step()
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
                 torch.cuda.empty_cache()
