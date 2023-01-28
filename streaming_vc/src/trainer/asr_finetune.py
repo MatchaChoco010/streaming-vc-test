@@ -79,15 +79,15 @@ class Trainer:
 
         self.scheduler_d = CosineAnnealingWarmupRestarts(
             self.optimizer_asr_d,
-            first_cycle_steps=100,
+            first_cycle_steps=1000,
             warmup_steps=0,
             max_lr=0.0025,
             min_lr=0.0001,
         )
         self.scheduler_g = CosineAnnealingWarmupRestarts(
             self.optimizer_asr_g,
-            first_cycle_steps=100,
-            warmup_steps=50,
+            first_cycle_steps=1000,
+            warmup_steps=500,
             max_lr=0.00025,
             min_lr=0.00001,
         )
@@ -170,10 +170,8 @@ class Trainer:
 
         while self.step < self.max_step:
             for spk_rm_audio, _ in self.spk_rm_loader:
-
-                if self.step % 10 == 0:
-                    self.scheduler_d.step()
-                    self.scheduler_g.step()
+                self.scheduler_d.step()
+                self.scheduler_g.step()
 
                 # speaker removal discriminator
                 r_audio = next(r_data_loader)
