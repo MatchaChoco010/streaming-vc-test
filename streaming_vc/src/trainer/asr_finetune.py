@@ -77,11 +77,17 @@ class Trainer:
             self.asr_model.encoder.parameters(), lr=0.0005
         )
 
-        self.scheduler_d = CosineAnnealingWarmUpRestarts(
-            self.optimizer_asr_d, first_cycle_steps=100, warmup_steps=100
+        self.scheduler_d = CosineAnnealingWarmupRestarts(
+            self.optimizer_asr_d,
+            first_cycle_steps=100,
+            warmup_steps=100,
+            min_lr=0.001,
         )
-        self.scheduler_g = CosineAnnealingWarmUpRestarts(
-            self.optimizer_asr_g, first_cycle_steps=100, warmup_steps=250
+        self.scheduler_g = CosineAnnealingWarmupRestarts(
+            self.optimizer_asr_g,
+            first_cycle_steps=100,
+            warmup_steps=250,
+            min_lr=0.0001,
         )
 
         if exp_name is not None:
