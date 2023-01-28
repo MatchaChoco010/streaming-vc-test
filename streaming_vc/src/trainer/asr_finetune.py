@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from src.data.asr_finetune_data_loader import load_data
 from src.model.asr_model import ASRModel
 from src.model.discriminator import Discriminator
-from src.trainer.cosine_annealing_warm_up_restarts import CosineAnnealingWarmUpRestarts
+from src.trainer.cosine_annealing_warm_up_restarts import CosineAnnealingWarmupRestarts
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
