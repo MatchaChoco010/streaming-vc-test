@@ -72,22 +72,22 @@ class Trainer:
 
         self.discriminator = Discriminator().to(self.device)
 
-        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.005)
+        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.001)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.0005
+            self.asr_model.encoder.parameters(), lr=0.0001
         )
 
         self.scheduler_d = CosineAnnealingWarmupRestarts(
             self.optimizer_asr_d,
             first_cycle_steps=100,
             warmup_steps=0,
-            min_lr=0.001,
+            min_lr=0.0001,
         )
         self.scheduler_g = CosineAnnealingWarmupRestarts(
             self.optimizer_asr_g,
             first_cycle_steps=100,
             warmup_steps=50,
-            min_lr=0.0001,
+            min_lr=0.00001,
         )
 
         if exp_name is not None:
