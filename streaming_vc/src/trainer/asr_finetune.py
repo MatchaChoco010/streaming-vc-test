@@ -71,9 +71,9 @@ class Trainer:
 
         self.discriminator = Discriminator().to(self.device)
 
-        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.0008)
+        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.001)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.000002
+            self.asr_model.encoder.parameters(), lr=0.0000025
         )
 
         if exp_name is not None:
@@ -134,6 +134,8 @@ class Trainer:
 
         spk_d_losses = []
         spk_g_losses = []
+        spk_g_misleading_losses = []
+        spk_g_text_losses = []
 
         def cycle(iterable):
             iterator = iter(iterable)
@@ -181,17 +183,20 @@ class Trainer:
 
                 spk_rm_feature_hat = self.asr_model.encoder(spk_rm_feat)
                 spk_rm_text_hat = self.asr_model.ctc_layers(spk_rm_feature_hat)
-                spk_rm_text_hat = spk_rm_text_hat.log_softmax(dim=2)
+                # spk_rm_text_hat = spk_rm_text_hat.log_softmax(dim=2)
 
                 spk_rm_result = self.discriminator(spk_rm_feature_hat)
                 mislead_loss = F.binary_cross_entropy(
                     spk_rm_result, torch.ones_like(spk_rm_result)
                 )
+                spk_g_misleading_losses.append(mislead_loss.item())
 
                 spk_rm_feature = self.frozen_encoder(spk_rm_feat)
                 spk_rm_text = self.asr_model.ctc_layers(spk_rm_feature)
 
-                text_loss = F.cross_entropy(spk_rm_text_hat, spk_rm_text.argmax(dim=1))
+                # text_loss = F.cross_entropy(spk_rm_text_hat, spk_rm_text.argmax(dim=1))
+                text_loss = F.l1_loss(spk_rm_text_hat, spk_rm_text)
+                spk_g_text_losses.append(text_loss.item())
 
                 spk_g_loss = mislead_loss + text_loss
                 spk_g_losses.append(spk_g_loss.item())
@@ -218,9 +223,21 @@ class Trainer:
                         sum(spk_g_losses) / len(spk_g_losses),
                         self.step,
                     )
+                    self.log.add_scalar(
+                        "train/spk_g_oss[misleading]",
+                        sum(spk_g_misleading_losses) / len(spk_g_misleading_losses),
+                        self.step,
+                    )
+                    self.log.add_scalar(
+                        "train/spk_g_loss[text]",
+                        sum(spk_g_text_losses) / len(spk_g_text_losses),
+                        self.step,
+                    )
                     # clear loss buffer
                     spk_d_losses = []
                     spk_g_losses = []
+                    spk_g_misleading_losses = []
+                    spk_g_text_losses = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
                 torch.cuda.empty_cache()
