@@ -80,13 +80,13 @@ class Trainer:
         self.scheduler_d = CosineAnnealingWarmupRestarts(
             self.optimizer_asr_d,
             first_cycle_steps=100,
-            warmup_steps=100,
+            warmup_steps=0,
             min_lr=0.001,
         )
         self.scheduler_g = CosineAnnealingWarmupRestarts(
             self.optimizer_asr_g,
             first_cycle_steps=100,
-            warmup_steps=250,
+            warmup_steps=50,
             min_lr=0.0001,
         )
 
