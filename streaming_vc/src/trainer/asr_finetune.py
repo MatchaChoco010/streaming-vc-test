@@ -172,6 +172,7 @@ class Trainer:
 
                 self.optimizer_asr_d.zero_grad()
                 spk_d_loss.backward()
+                torch.nn.util.clip_grad_norm_(self.discriminator.parameters(), 1.0)
                 self.optimizer_asr_d.step()
 
                 # speaker removal encoder
