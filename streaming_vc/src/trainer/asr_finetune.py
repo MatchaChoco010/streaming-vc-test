@@ -78,10 +78,10 @@ class Trainer:
         )
 
         self.scheduler_d = CosineAnnealingWarmUpRestarts(
-            self.optimizer_asr_d, T_0=100, T_up=100
+            self.optimizer_asr_d, first_cycle_steps=100, warmup_steps=100
         )
         self.scheduler_g = CosineAnnealingWarmUpRestarts(
-            self.optimizer_asr_g, T_0=100, T_up=250
+            self.optimizer_asr_g, first_cycle_steps=100, warmup_steps=250
         )
 
         if exp_name is not None:
