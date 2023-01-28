@@ -26,7 +26,7 @@ class Trainer:
         batch_size: int = 4,
         max_step: int = 10000001,
         progress_step: int = 10,
-        valid_step: int = 5000,
+        valid_step: int = 500,
         exp_name: str | None = None,
         ckpt_dir: str = "output/asr-fintune/ckpt",
         log_dir: str = "output/asr-fintune/log",
@@ -81,15 +81,8 @@ class Trainer:
             self.optimizer_asr_d,
             first_cycle_steps=1000,
             warmup_steps=0,
-            max_lr=0.0025,
+            max_lr=0.005,
             min_lr=0.0001,
-        )
-        self.scheduler_g = CosineAnnealingWarmupRestarts(
-            self.optimizer_asr_g,
-            first_cycle_steps=1000,
-            warmup_steps=500,
-            max_lr=0.00025,
-            min_lr=0.00001,
         )
 
         if exp_name is not None:
@@ -106,7 +99,6 @@ class Trainer:
         self.optimizer_asr_d.load_state_dict(ckpt["optimizer_asr_d"])
         self.optimizer_asr_g.load_state_dict(ckpt["optimizer_asr_g"])
         self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
-        self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
         self.step = ckpt["step"]
         print(f"Load checkpoint from {ckpt_path}")
 
@@ -121,7 +113,6 @@ class Trainer:
             "optimizer_asr_d": self.optimizer_asr_d.state_dict(),
             "optimizer_asr_g": self.optimizer_asr_g.state_dict(),
             "scheduler_d": self.scheduler_d.state_dict(),
-            "scheduler_g": self.scheduler_g.state_dict(),
             "step": self.step,
         }
         torch.save(save_dict, ckpt_path)
@@ -171,7 +162,6 @@ class Trainer:
         while self.step < self.max_step:
             for spk_rm_audio, _ in self.spk_rm_loader:
                 self.scheduler_d.step()
-                self.scheduler_g.step()
 
                 # speaker removal discriminator
                 r_audio = next(r_data_loader)
