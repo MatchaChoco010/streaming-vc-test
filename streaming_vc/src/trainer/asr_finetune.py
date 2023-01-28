@@ -8,7 +8,7 @@ from src.data.asr_finetune_data_loader import load_data
 from src.model.asr_model import ASRModel
 from src.model.discriminator import Discriminator
 from torch import optim
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, LinearLR
 from torch.utils.tensorboard import SummaryWriter
 
 SEGMENT_SIZE = 6 * 256 * 16
@@ -82,6 +82,9 @@ class Trainer:
             T_0=1000,
             eta_min=0.0001,
         )
+        self.scheduler_g = LinearLR(
+            self.optimizer_asr_g, start_factor=0.1, end_factor=1.0, total_iters=2000
+        )
 
         if exp_name is not None:
             self.load_ckpt()
@@ -97,6 +100,7 @@ class Trainer:
         self.optimizer_asr_d.load_state_dict(ckpt["optimizer_asr_d"])
         self.optimizer_asr_g.load_state_dict(ckpt["optimizer_asr_g"])
         self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
+        self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
         self.step = ckpt["step"]
         print(f"Load checkpoint from {ckpt_path}")
 
@@ -111,6 +115,7 @@ class Trainer:
             "optimizer_asr_d": self.optimizer_asr_d.state_dict(),
             "optimizer_asr_g": self.optimizer_asr_g.state_dict(),
             "scheduler_d": self.scheduler_d.state_dict(),
+            "scheduler_g": self.scheduler_g.state_dict(),
             "step": self.step,
         }
         torch.save(save_dict, ckpt_path)
@@ -160,6 +165,7 @@ class Trainer:
         while self.step < self.max_step:
             for spk_rm_audio, _ in self.spk_rm_loader:
                 self.scheduler_d.step()
+                self.scheduler_g.step()
 
                 # speaker removal discriminator
                 r_audio = next(r_data_loader)
