@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from src.data.asr_finetune_data_loader import load_data
 from src.model.asr_model import ASRModel
 from src.model.discriminator import Discriminator
-from src.trainer.cosine_annealing_warm_up_restarts import CosineAnnealingWarmupRestarts
 from torch import optim
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.tensorboard import SummaryWriter
 
 SEGMENT_SIZE = 6 * 256 * 16
@@ -72,17 +72,15 @@ class Trainer:
 
         self.discriminator = Discriminator().to(self.device)
 
-        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.001)
+        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.005)
         self.optimizer_asr_g = optim.AdamW(
             self.asr_model.encoder.parameters(), lr=0.0001
         )
 
-        self.scheduler_d = CosineAnnealingWarmupRestarts(
+        self.scheduler_d = CosineAnnealingWarmRestarts(
             self.optimizer_asr_d,
-            first_cycle_steps=1000,
-            warmup_steps=0,
-            max_lr=0.005,
-            min_lr=0.0001,
+            T_0=1000,
+            eta_min=0.0001,
         )
 
         if exp_name is not None:
