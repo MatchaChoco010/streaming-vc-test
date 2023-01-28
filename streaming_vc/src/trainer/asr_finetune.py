@@ -71,7 +71,7 @@ class Trainer:
 
         self.discriminator = Discriminator().to(self.device)
 
-        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.0005)
+        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.0008)
         self.optimizer_asr_g = optim.AdamW(
             self.asr_model.encoder.parameters(), lr=0.0005
         )
