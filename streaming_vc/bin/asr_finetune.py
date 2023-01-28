@@ -10,7 +10,7 @@ from src.trainer.asr_finetune import Trainer
 batch_size: int = 8
 max_step: int = 10000001
 progress_step: int = 10
-valid_step: int = 1000
+valid_step: int = 500
 exp_name: str | None = None
 
 
