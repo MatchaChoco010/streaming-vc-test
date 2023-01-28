@@ -195,7 +195,7 @@ class Trainer:
                 spk_rm_text = self.asr_model.ctc_layers(spk_rm_feature)
 
                 # text_loss = F.cross_entropy(spk_rm_text_hat, spk_rm_text.argmax(dim=1))
-                text_loss = F.l1_loss(spk_rm_text_hat, spk_rm_text)
+                text_loss = F.huber_loss(spk_rm_text_hat, spk_rm_text)
                 spk_g_text_losses.append(text_loss.item())
 
                 spk_g_loss = mislead_loss + text_loss
