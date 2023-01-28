@@ -193,7 +193,7 @@ class Trainer:
 
                 text_loss = F.cross_entropy(spk_rm_text_hat, spk_rm_text.argmax(dim=1))
 
-                spk_g_loss = 5.0 * mislead_loss + text_loss
+                spk_g_loss = mislead_loss + text_loss
                 spk_g_losses.append(spk_g_loss.item())
 
                 self.optimizer_asr_g.zero_grad()
