@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from src.data.asr_finetune_data_loader import load_data
 from src.model.asr_model import ASRModel
 from src.model.discriminator import Discriminator
+from src.trainer.cosine_annealing_warm_up_restarts import CosineAnnealingWarmUpRestarts
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -71,9 +72,16 @@ class Trainer:
 
         self.discriminator = Discriminator().to(self.device)
 
-        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.001)
+        self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.005)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.00005
+            self.asr_model.encoder.parameters(), lr=0.0005
+        )
+
+        self.scheduler_d = CosineAnnealingWarmUpRestarts(
+            self.optimizer_asr_d, 100, t_up=100
+        )
+        self.scheduler_g = CosineAnnealingWarmUpRestarts(
+            self.optimizer_asr_g, 100, t_up=250
         )
 
         if exp_name is not None:
@@ -89,6 +97,8 @@ class Trainer:
         self.discriminator.load_state_dict(ckpt["discriminator"])
         self.optimizer_asr_d.load_state_dict(ckpt["optimizer_asr_d"])
         self.optimizer_asr_g.load_state_dict(ckpt["optimizer_asr_g"])
+        self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
+        self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
         self.step = ckpt["step"]
         print(f"Load checkpoint from {ckpt_path}")
 
@@ -102,6 +112,8 @@ class Trainer:
             "discriminator": self.discriminator.state_dict(),
             "optimizer_asr_d": self.optimizer_asr_d.state_dict(),
             "optimizer_asr_g": self.optimizer_asr_g.state_dict(),
+            "scheduler_d": self.scheduler_d.state_dict(),
+            "scheduler_g": self.scheduler_g.state_dict(),
             "step": self.step,
         }
         torch.save(save_dict, ckpt_path)
@@ -238,6 +250,10 @@ class Trainer:
                     spk_g_losses = []
                     spk_g_misleading_losses = []
                     spk_g_text_losses = []
+
+                if self.step % 10 == 0:
+                    self.scheduler_d.step()
+                    self.scheduler_g.step()
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
                 torch.cuda.empty_cache()
