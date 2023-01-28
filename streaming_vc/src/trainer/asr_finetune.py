@@ -164,9 +164,6 @@ class Trainer:
 
         while self.step < self.max_step:
             for spk_rm_audio, _ in self.spk_rm_loader:
-                self.scheduler_d.step()
-                self.scheduler_g.step()
-
                 # speaker removal discriminator
                 r_audio = next(r_data_loader)
                 f_audio = next(f_data_loader)
@@ -221,6 +218,9 @@ class Trainer:
                 self.optimizer_asr_g.zero_grad()
                 spk_g_loss.backward()
                 self.optimizer_asr_g.step()
+
+                self.scheduler_d.step()
+                self.scheduler_g.step()
 
                 # ロギング
                 if self.step % self.progress_step == 0:
