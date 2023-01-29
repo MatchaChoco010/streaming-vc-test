@@ -11,12 +11,12 @@ class SpeakerRemoval(nn.Module):
     def __init__(self):
         super(SpeakerRemoval, self).__init__()
         self.layers = nn.Sequential(
-            FFTBlockST(80, 512),
+            FFTBlockST(32, 512),
             FFTBlockST(512, 512),
             FFTBlockST(512, 512),
-            nn.Linear(512, 80),
+            nn.Linear(512, 32),
         )
 
     def forward(self, xs: torch.Tensor) -> torch.Tensor:
         xs = self.layers(xs)
-        return xs.transpose(1, 2)
+        return xs

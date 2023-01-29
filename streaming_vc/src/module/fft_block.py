@@ -118,7 +118,7 @@ class FFTBlock(nn.Module):
         self.dropout1 = nn.Dropout(0.1)
 
         # conv1d
-        self.conv = nn.Conv1d(decoder_feature_size, decoder_feature_size, 3)
+        self.conv = nn.Conv1d(decoder_feature_size, decoder_feature_size, 3, padding=1)
         self.norm2 = nn.LayerNorm(decoder_feature_size)
         self.dropout2 = nn.Dropout(0.1)
 
@@ -133,7 +133,7 @@ class FFTBlock(nn.Module):
         """
         seq_length = input_features.shape[1]
 
-        mask = torch.ones((1, seq_length, 1)).to(
+        mask = torch.ones((1, seq_length, seq_length)).to(
             input_features.device, torch.bool
         )
 

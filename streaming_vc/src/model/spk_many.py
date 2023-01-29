@@ -11,12 +11,12 @@ class SpeakerMany(nn.Module):
     def __init__(self):
         super(SpeakerMany, self).__init__()
         self.layers = nn.Sequential(
-            FFTBlock(80, 512),
+            FFTBlock(32, 512),
             FFTBlock(512, 512),
             FFTBlock(512, 512),
-            nn.Linear(512, 80),
+            nn.Linear(512, 32),
         )
 
     def forward(self, xs: torch.Tensor) -> torch.Tensor:
         xs = self.layers(xs)
-        return xs.transpose(1, 2)
+        return xs

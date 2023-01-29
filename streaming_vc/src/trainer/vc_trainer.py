@@ -1,5 +1,6 @@
 import os
 import pathlib
+import itertools
 from datetime import datetime
 
 import torch
@@ -11,7 +12,7 @@ from src.model.hifi_gan_generator import Generator
 from src.model.mel_gen import MelGenerate
 from src.model.spk_rm import SpeakerRemoval
 from src.model.spk_many import SpeakerMany
-from src.model.discriminator import Discriminator
+from src.model.discriminator import DiscriminatorMel, DiscriminatorFeat
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -69,15 +70,15 @@ class Trainer:
 
         self.asr_model = ASRModel(vocab_size=32).to(self.device)
         asr_ckpt = torch.load(asr_ckpt_path, map_location=self.device)
-        self.asr_model.load_state_dict(asr_ckpt["asr_model"])
+        self.asr_model.load_state_dict(asr_ckpt["model"])
 
         self.mel_gen = MelGenerate().to(self.device)
         self.spk_rm = SpeakerRemoval().to(self.device)
         self.spk_many = SpeakerMany().to(self.device)
-        self.d_feat_target = Discriminator().to(self.device)
-        self.d_feat_many = Discriminator().to(self.device)
-        self.d_mel_target = Discriminator().to(self.device)
-        self.d_mel_many = Discriminator().to(self.device)
+        self.d_feat_target = DiscriminatorFeat().to(self.device)
+        self.d_feat_many = DiscriminatorFeat().to(self.device)
+        self.d_mel_target = DiscriminatorMel().to(self.device)
+        self.d_mel_many = DiscriminatorMel().to(self.device)
 
         self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
@@ -96,10 +97,10 @@ class Trainer:
         )
         self.optimizer_d_mel_many = optim.AdamW(self.d_mel_many.parameters(), lr=0.0002)
         self.optimizer_cycle = optim.AdamW(
-            iter(self.spk_rm.parameters(), self.spk_many.parameters()),
+            itertools.chain(self.spk_rm.parameters(), self.spk_many.parameters()),
             lr=0.0002,
         )
-        self.optimizer_mel_gen = optim.AdamW(self.mel_gen.parameters(), lr=0.0002)
+        self.optimizer_mel_gen = optim.AdamW(self.mel_gen.parameters(), lr=0.002)
 
         if exp_name is not None:
             self.load_ckpt()
@@ -228,9 +229,9 @@ class Trainer:
         mel_gen_losses = []
 
         while self.step < self.max_step:
-            x_many = next(f_data_loader).to(self.device)
+            x_many = next(f_data_loader).to(self.device).squeeze(1)
             x_target, target_mel = next(r_data_loader)
-            x_target = x_target.to(self.device)
+            x_target = x_target.to(self.device).squeeze(1)
             target_mel = target_mel.to(self.device)
 
             # d_feat_targetの学習
@@ -302,6 +303,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
+            xs = self.d_mel_target(xs)
             d_mel_target_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
             d_mel_target_many_losses.append(d_mel_target_many_loss.item())
 
@@ -309,6 +311,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
+            xs = self.d_mel_target(xs)
             d_mel_target_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
             d_mel_target_target_losses.append(d_mel_target_target_loss.item())
 
@@ -319,11 +322,12 @@ class Trainer:
             d_mel_target_all_loss.backward()
             self.optimizer_d_mel_target.step()
 
-            # d_mel_targetの学習
+            # d_mel_manyの学習
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_many(xs)
             xs = self.mel_gen(xs)
+            xs = self.d_mel_many(xs)
             d_mel_many_many_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
             d_mel_many_many_losses.append(d_mel_many_many_loss.item())
 
@@ -331,6 +335,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_many(xs)
             xs = self.mel_gen(xs)
+            xs = self.d_mel_many(xs)
             d_mel_many_target_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
             d_mel_many_target_losses.append(d_mel_many_target_loss.item())
 
@@ -345,18 +350,22 @@ class Trainer:
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
+            xs_target = self.d_feat_target(xs)
+            xs_many = self.d_feat_many(xs)
             spk_rm_feat_loss = F.binary_cross_entropy(
-                self.d_feat_target(xs), torch.ones_like(xs)
-            ) + F.binary_cross_entropy(self.d_feat_many(xs), torch.zeros_like(xs))
+                xs_target, torch.ones_like(xs_target)
+            ) + F.binary_cross_entropy(xs_many, torch.zeros_like(xs_many))
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
             xs = self.asr_model.feature_extractor(x_target)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
+            xs_target = self.d_mel_target(xs)
+            xs_many = self.d_mel_many(xs)
             spk_rm_mel_loss = F.binary_cross_entropy(
-                self.d_mel_target(xs), torch.ones_like(xs)
-            ) + F.binary_cross_entropy(self.d_mel_many(xs), torch.zeros_like(xs))
+                xs_target, torch.ones_like(xs_target)
+            ) + F.binary_cross_entropy(xs_many, torch.zeros_like(xs_many))
             spk_rm_mel_losses.append(spk_rm_mel_loss.item())
 
             spk_rm_all_loss = spk_rm_feat_loss + spk_rm_mel_loss
@@ -370,9 +379,11 @@ class Trainer:
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_many(xs)
+            xs_target = self.d_feat_target(xs)
+            xs_many = self.d_feat_many(xs)
             spk_many_feat_loss = F.binary_cross_entropy(
-                self.d_feat_target(xs), torch.zeros_like(xs)
-            ) + F.binary_cross_entropy(self.d_feat_many(xs), torch.ones_like(xs))
+                xs_target, torch.zeros_like(xs_target)
+            ) + F.binary_cross_entropy(xs_many, torch.ones_like(xs_many))
             spk_many_feat_losses.append(spk_many_feat_loss.item())
 
             spk_many_all_loss = spk_many_feat_loss
@@ -387,12 +398,14 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.spk_many(xs)
+            xs_target = self.d_feat_target(xs)
             cycle_many_d_feat_target_loss = F.binary_cross_entropy(
-                self.d_feat_target(xs), torch.zeros_like(xs)
+                xs_target, torch.zeros_like(xs_target)
             )
             cycle_many_d_feat_target_losses.append(cycle_many_d_feat_target_loss.item())
+            xs_many = self.d_feat_many(xs)
             cycle_many_d_feat_many_loss = F.binary_cross_entropy(
-                self.d_feat_many(xs), torch.ones_like(xs)
+                xs_many, torch.ones_like(xs_many)
             )
             cycle_many_d_feat_many_losses.append(cycle_many_d_feat_many_loss.item())
 
@@ -400,25 +413,29 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_many(xs)
             xs = self.spk_rm(xs)
+            xs_target = self.d_feat_many(xs)
             cycle_target_d_feat_target_loss = F.binary_cross_entropy(
-                self.d_feat_many(xs), torch.ones_like(xs)
+                xs_target, torch.ones_like(xs_target)
             )
             cycle_target_d_feat_target_losses.append(
                 cycle_target_d_feat_target_loss.item()
             )
+            xs_many = self.d_feat_many(xs)
             cycle_target_d_feat_many_loss = F.binary_cross_entropy(
-                self.d_feat_many(xs), torch.zeros_like(xs)
+                xs_many, torch.zeros_like(xs_many)
             )
             cycle_target_d_feat_many_losses.append(cycle_target_d_feat_many_loss.item())
             xs = self.mel_gen(xs)
+            xs_target = self.d_mel_target(xs)
             cycle_target_d_mel_target_loss = F.binary_cross_entropy(
-                self.d_mel_target(xs), torch.ones_like(xs)
+                xs_target, torch.ones_like(xs_target)
             )
             cycle_target_d_mel_target_losses.append(
                 cycle_target_d_mel_target_loss.item()
             )
+            xs_many = self.d_mel_many(xs)
             cycle_target_d_mel_many_loss = F.binary_cross_entropy(
-                self.d_mel_many(xs), torch.zeros_like(xs)
+                xs_many, torch.zeros_like(xs_many)
             )
             cycle_target_d_mel_many_losses.append(cycle_target_d_mel_many_loss.item())
 
