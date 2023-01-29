@@ -3,13 +3,13 @@ import torch.nn as nn
 from src.module.fft_block import FFTBlock
 
 
-class SpakerMany(nn.Module):
+class SpeakerMany(nn.Module):
     """
     FastSpeechのFFTBlockを積み重ねたモデル
     """
 
     def __init__(self):
-        super(SpakerMany, self).__init__()
+        super(SpeakerMany, self).__init__()
         self.layers = nn.Sequential(
             FFTBlock(80, 512),
             FFTBlock(512, 512),
