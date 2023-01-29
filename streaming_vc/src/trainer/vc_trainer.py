@@ -11,7 +11,6 @@ from src.model.asr_model import ASRModel
 from src.model.hifi_gan_generator import Generator
 from src.model.mel_gen import MelGenerate
 from src.model.spk_rm import SpeakerRemoval
-from src.model.spk_many import SpeakerMany
 from src.model.discriminator import DiscriminatorMel, DiscriminatorFeat
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
@@ -74,26 +73,19 @@ class Trainer:
 
         self.mel_gen = MelGenerate().to(self.device)
         self.spk_rm = SpeakerRemoval().to(self.device)
-        self.spk_many = SpeakerMany().to(self.device)
-        self.d_feat_target = DiscriminatorFeat().to(self.device)
-        self.d_feat_many = DiscriminatorFeat().to(self.device)
-        self.d_mel_target = DiscriminatorMel().to(self.device)
-        self.d_mel_many = DiscriminatorMel().to(self.device)
+        self.d_feat = DiscriminatorFeat().to(self.device)
+        self.d_mel = DiscriminatorMel().to(self.device)
 
         self.vocoder = Generator().to(self.device).eval()
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.0005)
-        self.optimizer_d_feat_target = optim.AdamW(
-            self.d_feat_target.parameters(), lr=0.0002
-        )
-        self.optimizer_d_mel_target = optim.AdamW(
-            self.d_mel_target.parameters(), lr=0.0002
-        )
+        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.0002)
+        self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=0.0002)
+        self.optimizer_d_mel = optim.AdamW(self.d_mel.parameters(), lr=0.0002)
         self.optimizer_mel_gen = optim.AdamW(
             itertools.chain(self.spk_rm.parameters(), self.mel_gen.parameters()),
-            lr=0.0005,
+            lr=0.0002,
         )
 
         if exp_name is not None:
@@ -108,12 +100,12 @@ class Trainer:
         self.asr_model.load_state_dict(ckpt["asr_model"])
         self.spk_rm.load_state_dict(ckpt["spk_rm"])
         self.mel_gen.load_state_dict(ckpt["mel_gen"])
-        self.d_feat_target.load_state_dict(ckpt["d_feat_target"])
-        self.d_mel_target.load_state_dict(ckpt["d_mel_target"])
+        self.d_feat.load_state_dict(ckpt["d_feat"])
+        self.d_mel.load_state_dict(ckpt["d_mel"])
         self.optimizer_spk_rm.load_state_dict(ckpt["optimizer_spk_rm"])
         self.optimizer_mel_gen.load_state_dict(ckpt["optimizer_mel_gen"])
-        self.optimizer_d_feat_target.load_state_dict(ckpt["optimizer_d_feat_target"])
-        self.optimizer_d_mel_target.load_state_dict(ckpt["optimizer_d_mel_target"])
+        self.optimizer_d_feat.load_state_dict(ckpt["optimizer_d_feat"])
+        self.optimizer_d_mel.load_state_dict(ckpt["optimizer_d_mel"])
         self.step = ckpt["step"]
         print(f"Load checkpoint from {ckpt_path}")
 
@@ -125,14 +117,13 @@ class Trainer:
         save_dict = {
             "asr_model": self.asr_model.state_dict(),
             "spk_rm": self.spk_rm.state_dict(),
-            "spk_many": self.spk_many.state_dict(),
             "mel_gen": self.mel_gen.state_dict(),
-            "d_feat_target": self.d_feat_target.state_dict(),
-            "d_mel_target": self.d_mel_target.state_dict(),
+            "d_feat": self.d_feat.state_dict(),
+            "d_mel": self.d_mel.state_dict(),
             "optimizer_spk_rm": self.optimizer_spk_rm.state_dict(),
             "optimizer_mel_gen": self.optimizer_mel_gen.state_dict(),
-            "optimizer_d_feat_target": self.optimizer_d_feat_target.state_dict(),
-            "optimizer_d_mel_target": self.optimizer_d_mel_target.state_dict(),
+            "optimizer_d_feat": self.optimizer_d_feat.state_dict(),
+            "optimizer_d_mel": self.optimizer_d_mel.state_dict(),
             "step": self.step,
         }
         # torch.save(save_dict, ckpt_path)
@@ -174,17 +165,18 @@ class Trainer:
         r_data_loader = cycle(self.real_data_loader)
         f_data_loader = cycle(self.fake_data_loader)
 
-        d_feat_target_many_losses = []
-        d_feat_target_target_losses = []
-        d_feat_target_text_losses = []
-        d_feat_target_all_losses = []
+        d_feat_many_losses = []
+        d_feat_target_losses = []
+        d_feat_text_losses = []
+        d_feat_all_losses = []
 
-        d_mel_target_many_losses = []
-        d_mel_target_target_losses = []
-        d_mel_target_all_losses = []
+        d_mel_many_losses = []
+        d_mel_target_losses = []
+        d_mel_all_losses = []
 
         spk_rm_feat_losses = []
         spk_rm_mel_losses = []
+        spk_rm_text_losses = []
         spk_rm_all_losses = []
 
         mel_gen_losses = []
@@ -195,68 +187,64 @@ class Trainer:
             x_target = x_target.to(self.device).squeeze(1)
             target_mel = target_mel.to(self.device)
 
-            # d_feat_targetの学習
+            # d_featの学習
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
-            xs = self.d_feat_target(xs)
-            d_feat_target_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
-            d_feat_target_many_losses.append(d_feat_target_many_loss.item())
+            xs = self.d_feat(xs)
+            d_feat_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
+            d_feat_many_losses.append(d_feat_many_loss.item())
 
             xs = self.asr_model.feature_extractor(x_target)
             xs = self.asr_model.encoder(xs)
-            xs = self.d_feat_target(xs)
-            d_feat_target_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
-            d_feat_target_target_losses.append(d_feat_target_target_loss.item())
+            xs = self.d_feat(xs)
+            d_feat_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+            d_feat_target_losses.append(d_feat_target_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
             text_wo_spk_rm = self.asr_model.ctc_layers(xs)
             xs = self.spk_rm(xs)
             text_w_spk_rm = self.asr_model.ctc_layers(xs)
-            d_feat_target_text_loss = F.huber_loss(text_wo_spk_rm, text_w_spk_rm)
-            d_feat_target_text_losses.append(d_feat_target_text_loss.item())
+            d_feat_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 0.1
+            d_feat_text_losses.append(d_feat_text_loss.item())
 
-            d_feat_target_all_loss = (
-                d_feat_target_many_loss
-                + d_feat_target_target_loss
-                + d_feat_target_text_loss
-            )
-            d_feat_target_all_losses.append(d_feat_target_all_loss.item())
+            d_feat_all_loss = d_feat_many_loss + d_feat_target_loss + d_feat_text_loss
+            d_feat_all_losses.append(d_feat_all_loss.item())
 
-            self.optimizer_d_feat_target.zero_grad()
-            d_feat_target_all_loss.backward()
-            self.optimizer_d_feat_target.step()
+            self.optimizer_d_feat.zero_grad()
+            d_feat_all_loss.backward()
+            self.optimizer_d_feat.step()
 
-            # d_mel_targetの学習
+            # d_melの学習
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
-            xs = self.d_mel_target(xs)
-            d_mel_target_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
-            d_mel_target_many_losses.append(d_mel_target_many_loss.item())
+            xs = self.d_mel(xs)
+            d_mel_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
+            d_mel_many_losses.append(d_mel_many_loss.item())
 
             xs = self.asr_model.feature_extractor(x_target)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
-            xs = self.d_mel_target(xs)
-            d_mel_target_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
-            d_mel_target_target_losses.append(d_mel_target_target_loss.item())
+            xs = self.d_mel(xs)
+            d_mel_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+            d_mel_target_losses.append(d_mel_target_loss.item())
 
-            d_mel_target_all_loss = d_mel_target_many_loss + d_mel_target_target_loss
-            d_mel_target_all_losses.append(d_mel_target_all_loss.item())
+            d_mel_all_loss = d_mel_many_loss + d_mel_target_loss
+            d_mel_all_losses.append(d_mel_all_loss.item())
 
-            self.optimizer_d_mel_target.zero_grad()
-            d_mel_target_all_loss.backward()
-            self.optimizer_d_mel_target.step()
+            self.optimizer_d_mel.zero_grad()
+            d_mel_all_loss.backward()
+            self.optimizer_d_mel.step()
 
             # spk_rmの学習
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
-            xs = self.d_feat_target(xs)
+            xs = self.d_feat(xs)
             spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
@@ -264,11 +252,19 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
-            xs = self.d_mel_target(xs)
+            xs = self.d_mel(xs)
             spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
             spk_rm_mel_losses.append(spk_rm_mel_loss.item())
 
-            spk_rm_all_loss = spk_rm_feat_loss + spk_rm_mel_loss
+            xs = self.asr_model.feature_extractor(x_many)
+            xs = self.asr_model.encoder(xs)
+            text_wo_spk_rm = self.asr_model.ctc_layers(xs)
+            xs = self.spk_rm(xs)
+            text_w_spk_rm = self.asr_model.ctc_layers(xs)
+            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 0.1
+            spk_rm_text_losses.append(spk_rm_text_loss.item())
+
+            spk_rm_all_loss = spk_rm_feat_loss + spk_rm_mel_loss + spk_rm_text_loss
             spk_rm_all_losses.append(spk_rm_all_loss.item())
 
             self.optimizer_spk_rm.zero_grad()
@@ -281,7 +277,7 @@ class Trainer:
             xs = self.spk_rm(xs)
             target_mel_hat = self.mel_gen(xs)
 
-            mel_gen_loss = F.huber_loss(target_mel_hat, target_mel)
+            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel)
             mel_gen_losses.append(mel_gen_loss.item())
 
             self.optimizer_mel_gen.zero_grad()
@@ -300,39 +296,39 @@ class Trainer:
 
                 ## tensorboard
                 self.log.add_scalar(
-                    "train/d_feat_target_many_loss",
-                    sum(d_feat_target_many_losses) / len(d_feat_target_many_losses),
+                    "train/d_feat_many_loss",
+                    sum(d_feat_many_losses) / len(d_feat_many_losses),
                     self.step,
                 )
                 self.log.add_scalar(
-                    "train/d_feat_target_target_loss",
-                    sum(d_feat_target_target_losses) / len(d_feat_target_target_losses),
+                    "train/d_feat_target_loss",
+                    sum(d_feat_target_losses) / len(d_feat_target_losses),
                     self.step,
                 )
                 self.log.add_scalar(
-                    "train/d_feat_target_text_loss",
-                    sum(d_feat_target_text_losses) / len(d_feat_target_text_losses),
+                    "train/d_feat_text_loss",
+                    sum(d_feat_text_losses) / len(d_feat_text_losses),
                     self.step,
                 )
                 self.log.add_scalar(
-                    "train/d_feat_target_all_loss",
-                    sum(d_feat_target_all_losses) / len(d_feat_target_all_losses),
+                    "train/d_feat_all_loss",
+                    sum(d_feat_all_losses) / len(d_feat_all_losses),
                     self.step,
                 )
 
                 self.log.add_scalar(
-                    "train/d_mel_target_many_loss",
-                    sum(d_mel_target_many_losses) / len(d_mel_target_many_losses),
+                    "train/d_mel_many_loss",
+                    sum(d_mel_many_losses) / len(d_mel_many_losses),
                     self.step,
                 )
                 self.log.add_scalar(
-                    "train/d_mel_target_target_loss",
-                    sum(d_mel_target_target_losses) / len(d_mel_target_target_losses),
+                    "train/d_mel_target_loss",
+                    sum(d_mel_target_losses) / len(d_mel_target_losses),
                     self.step,
                 )
                 self.log.add_scalar(
-                    "train/d_mel_target_all_loss",
-                    sum(d_mel_target_all_losses) / len(d_mel_target_all_losses),
+                    "train/d_mel_all_loss",
+                    sum(d_mel_all_losses) / len(d_mel_all_losses),
                     self.step,
                 )
 
@@ -344,6 +340,11 @@ class Trainer:
                 self.log.add_scalar(
                     "train/spk_rm_mel_loss",
                     sum(spk_rm_mel_losses) / len(spk_rm_mel_losses),
+                    self.step,
+                )
+                self.log.add_scalar(
+                    "train/spk_rm_text_loss",
+                    sum(spk_rm_text_losses) / len(spk_rm_text_losses),
                     self.step,
                 )
                 self.log.add_scalar(
@@ -361,17 +362,18 @@ class Trainer:
                 self.log.add_scalar("train/mel_error", mel_error, self.step)
 
                 # clear loss buffer
-                d_feat_target_many_losses = []
-                d_feat_target_target_losses = []
-                d_feat_target_text_losses = []
-                d_feat_target_all_losses = []
+                d_feat_many_losses = []
+                d_feat_target_losses = []
+                d_feat_text_losses = []
+                d_feat_all_losses = []
 
-                d_mel_target_many_losses = []
-                d_mel_target_target_losses = []
-                d_mel_target_all_losses = []
+                d_mel_many_losses = []
+                d_mel_target_losses = []
+                d_mel_all_losses = []
 
                 spk_rm_feat_losses = []
                 spk_rm_mel_losses = []
+                spk_rm_text_losses = []
                 spk_rm_all_losses = []
 
                 mel_gen_losses = []
@@ -444,8 +446,8 @@ class Trainer:
                     else:
                         feat_history = torch.cat([feat_history, feat], dim=1)
 
-                    feature = self.asr_model.encoder(
-                        feat_history[:, -history_size:, :]
+                    feature = self.spk_rm(
+                        self.asr_model.encoder(feat_history[:, -history_size:, :])
                     )[:, -6:, :]
 
                     if mel_history is None:

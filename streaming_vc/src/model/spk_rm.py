@@ -14,9 +14,12 @@ class SpeakerRemoval(nn.Module):
             FFTBlockST(32, 512),
             FFTBlockST(512, 512),
             FFTBlockST(512, 512),
-            nn.Linear(512, 32),
         )
+        self.bn = nn.BatchNorm1d(512)
+        self.after_layer = nn.Linear(512, 32)
 
     def forward(self, xs: torch.Tensor) -> torch.Tensor:
         xs = self.layers(xs)
+        xs = self.bn(xs.transpose(1, 2))
+        xs = self.after_layer(xs.transpose(1, 2))
         return xs
