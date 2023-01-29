@@ -1,9 +1,11 @@
+import MeCab
+import ipadic
 import pykakasi
 import torch
 import torchaudio
 from datasets import load_dataset
 from src.module.text_encoder import TextEncoder
-from torch.utils.data import Dataset, IterableDataset
+from torch.utils.data import IterableDataset
 
 MAX_AUDIO_LENGTH = 24000 * 30
 MAX_TEXT_LENGTH = 600
@@ -26,6 +28,7 @@ class ReazonDataset(IterableDataset):
             )["train"].take(2400)
         self.kks = pykakasi.kakasi()
         self.text_encoder = text_encoder
+        self.T = MeCab.Tagger(f"{ipadic.MECAB_ARGS} -Oyomi")
 
     def __iter__(self):
         for data in self.dataset:
@@ -33,8 +36,8 @@ class ReazonDataset(IterableDataset):
             audio = torchaudio.transforms.Resample(
                 data["audio"]["sampling_rate"], 24000
             )(audio)[:MAX_AUDIO_LENGTH]
-            result = self.kks.convert(data["transcription"])
-            text = "".join([item["hepburn"] for item in result]).upper()
+            result = self.kks.convert(self.T.parse(data["transcription"]))
+            text = "".join([item["kunrei"] for item in result]).upper()
             encoded_text = self.text_encoder.encode(text[:MAX_TEXT_LENGTH])
 
             yield audio, encoded_text
