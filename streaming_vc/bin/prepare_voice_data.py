@@ -9,9 +9,10 @@ import src.data.prepare as prepare_dataset
 
 
 def prepare(dataset_dir: str, output_dir: str):
-    prepare_dataset.resample(dataset_dir, "tmp")
-    prepare_dataset.remove_silence("tmp", output_dir)
-    shutil.rmtree("tmp")
+    # prepare_dataset.resample(dataset_dir, "tmp")
+    # prepare_dataset.remove_silence("tmp", output_dir)
+    # shutil.rmtree("tmp")
+    prepare_dataset.resample(dataset_dir, output_dir)
 
 
 if __name__ == "__main__":

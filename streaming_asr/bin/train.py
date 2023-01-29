@@ -16,8 +16,8 @@ valid_step: int = 1000
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="training")
     parser.add_argument("--exp_name", default=None)
-    parser.add_argument("--ckpt_dir", default="output/ckpt")
-    parser.add_argument("--log_dir", default="output/log")
+    parser.add_argument("--ckpt_dir", default="output/asr/ckpt")
+    parser.add_argument("--log_dir", default="output/asr/log")
     args = parser.parse_args()
     trainer = Trainer(
         batch_size=batch_size,
