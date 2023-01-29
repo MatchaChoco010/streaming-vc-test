@@ -74,7 +74,7 @@ class Trainer:
 
         self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.005)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.00008
+            self.asr_model.encoder.parameters(), lr=0.000025
         )
 
         self.scheduler_d = CosineAnnealingWarmRestarts(
