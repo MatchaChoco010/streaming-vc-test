@@ -77,7 +77,7 @@ class Trainer:
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer_mse = optim.AdamW(self.mel_gen_model.parameters(), lr=0.0005)
+        self.optimizer_mse = optim.AdamW(self.mel_gen_model.parameters(), lr=0.0002)
 
         if exp_name is not None:
             self.load_ckpt()
