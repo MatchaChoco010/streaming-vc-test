@@ -1,5 +1,6 @@
 import pathlib
 import random
+from typing import Tuple
 
 import torch
 import torch.nn.functional as F
@@ -7,12 +8,12 @@ import torchaudio
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, IterableDataset
 
-SEGMENT_SIZE = 6 * 256 * 16
+MAX_AUDIO_LENGTH = 6 * 256 * 128
 
 
-class VCDataset(IterableDataset):
+class VCGanRealDataset(IterableDataset):
     """
-    VC訓練用のデータセットを扱うクラス
+    VCのGANの訓練用のRealのデータセットを扱うクラス
     """
 
     def __init__(self, dataset_dir: str):
@@ -28,36 +29,61 @@ class VCDataset(IterableDataset):
     def __iter__(self):
         """
         Returns:
-            Generator[(audio, mel), None, None]:
-                Generator[Tuple[torch.Tensor, torch.Tensor], None, None]
+            Generator[audio, None, None]:
+                Generator[torch.Tensor, None, None]
 
             audio: torch.Tensor (batch_size, segments)
                 音声の特徴量
-            mel: torch.Tensor (batch_size, segments / 256, mel_feature_size)
-                各バッチの音声特徴量の長さ
         """
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
 
-            audio_start = random.randint(0, SEGMENT_SIZE)
-            for start in range(audio_start, audio.shape[1], SEGMENT_SIZE):
-                clip_audio = audio[:, start : start + SEGMENT_SIZE]
+            start = random.randint(0, max(0, audio.shape[1] - MAX_AUDIO_LENGTH))
+            clip_audio = audio[:, start : start + MAX_AUDIO_LENGTH]
 
-                if clip_audio.shape[1] < SEGMENT_SIZE:
-                    clip_audio = F.pad(
-                        clip_audio, (0, SEGMENT_SIZE - clip_audio.shape[1]), "constant"
-                    )
+            if clip_audio.shape[1] < MAX_AUDIO_LENGTH:
+                clip_audio = F.pad(
+                    clip_audio, (0, MAX_AUDIO_LENGTH - clip_audio.shape[1]), "constant"
+                )
 
-                mel = torchaudio.transforms.MelSpectrogram(
-                    n_fft=1024,
-                    n_mels=80,
-                    sample_rate=24000,
-                    hop_length=256,
-                    win_length=1024,
-                )(clip_audio)[:, :, : SEGMENT_SIZE // 256]
-                mel = log_melspectrogram(mel).squeeze(0)
+            mel = torchaudio.transforms.MelSpectrogram(
+                n_fft=1024,
+                n_mels=80,
+                sample_rate=24000,
+                hop_length=256,
+                win_length=1024,
+            )(clip_audio)[:, :, : MAX_AUDIO_LENGTH // 256]
+            mel = log_melspectrogram(mel).squeeze(0)
 
-                yield clip_audio, mel
+            yield clip_audio, mel
+
+
+class VCGanFakeDataset(IterableDataset):
+    """
+    VCのGANの訓練用のFakeのデータセットを扱うクラス
+    """
+
+    def __init__(self):
+        self.dataset = load_dataset(  # type: ignore
+            "reazon-research/reazonspeech", "small"  # , streaming=True
+        )["train"]
+
+    def __iter__(self):
+        for data in self.dataset:
+            audio = torch.from_numpy(data["audio"]["array"]).to(dtype=torch.float32)
+            audio = torchaudio.transforms.Resample(
+                data["audio"]["sampling_rate"], 24000
+            )(audio).unsqueeze(0)
+
+            start = random.randint(0, max(0, audio.shape[1] - MAX_AUDIO_LENGTH))
+            clip_audio = audio[:, start : start + MAX_AUDIO_LENGTH]
+
+            if clip_audio.shape[1] < MAX_AUDIO_LENGTH:
+                clip_audio = F.pad(
+                    clip_audio, (0, MAX_AUDIO_LENGTH - clip_audio.shape[1]), "constant"
+                )
+
+            yield clip_audio
 
 
 class ShuffleDataset(torch.utils.data.IterableDataset):
@@ -93,24 +119,18 @@ class ShuffleDataset(torch.utils.data.IterableDataset):
 def load_data(
     dataset_dir: str,
     batch_size: int,
-) -> DataLoader:
-    """
-    DataLoaderを作成する関数
-
-    Arguments:
-        dataset_dir: str
-            データセットのディレクトリ
-        batch_size: int
-            バッチサイズ
-    Returns:
-        data_loader: DataLoader
-            学習用のデータセットのローダー
-    """
-    data_loader = DataLoader(
-        ShuffleDataset(VCDataset(dataset_dir), 256),
-        batch_size=batch_size,
+) -> Tuple[DataLoader, DataLoader]:
+    real_data_loader = DataLoader(
+        ShuffleDataset(VCGanRealDataset(dataset_dir), 256),
+        batch_size=max(batch_size, 1),
+        drop_last=False,
+        pin_memory=True,
+    )
+    fake_data_loader = DataLoader(
+        VCGanFakeDataset(),
+        batch_size=max(batch_size, 1),
         drop_last=False,
         pin_memory=True,
     )
 
-    return data_loader
+    return real_data_loader, fake_data_loader
