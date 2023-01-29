@@ -74,14 +74,9 @@ class Trainer:
 
         self.optimizer_asr_d = optim.AdamW(self.discriminator.parameters(), lr=0.005)
         self.optimizer_asr_g = optim.AdamW(
-            self.asr_model.encoder.parameters(), lr=0.000025
+            self.asr_model.encoder.parameters(), lr=0.00005
         )
 
-        self.scheduler_d = CosineAnnealingWarmRestarts(
-            self.optimizer_asr_d,
-            T_0=1000,
-            eta_min=0.0001,
-        )
         self.scheduler_g = LinearLR(
             self.optimizer_asr_g, start_factor=0.1, end_factor=1.0, total_iters=2000
         )
@@ -99,7 +94,6 @@ class Trainer:
         self.discriminator.load_state_dict(ckpt["discriminator"])
         self.optimizer_asr_d.load_state_dict(ckpt["optimizer_asr_d"])
         self.optimizer_asr_g.load_state_dict(ckpt["optimizer_asr_g"])
-        self.scheduler_d.load_state_dict(ckpt["scheduler_d"])
         self.scheduler_g.load_state_dict(ckpt["scheduler_g"])
         self.step = ckpt["step"]
         print(f"Load checkpoint from {ckpt_path}")
@@ -114,7 +108,6 @@ class Trainer:
             "discriminator": self.discriminator.state_dict(),
             "optimizer_asr_d": self.optimizer_asr_d.state_dict(),
             "optimizer_asr_g": self.optimizer_asr_g.state_dict(),
-            "scheduler_d": self.scheduler_d.state_dict(),
             "scheduler_g": self.scheduler_g.state_dict(),
             "step": self.step,
         }
@@ -219,7 +212,6 @@ class Trainer:
                 spk_g_loss.backward()
                 self.optimizer_asr_g.step()
 
-                self.scheduler_d.step()
                 self.scheduler_g.step()
 
                 # ロギング
