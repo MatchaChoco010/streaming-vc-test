@@ -3,7 +3,6 @@ from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
-import torchaudio
 from src.data.libri_dataset import LibriDataset
 from src.data.reazon_dataset import ReazonDataset
 from src.module.text_encoder import TextEncoder
