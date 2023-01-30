@@ -173,8 +173,8 @@ class Trainer:
 
         while self.step < self.max_step:
             for audio, mel in self.data_loader:
-                audio = torch.autograd.Variable(audio.to(device=self.device))
-                mel = torch.autograd.Variable(mel.to(device=self.device))
+                audio = audio.to(device=self.device)
+                mel = mel.to(device=self.device)
 
                 audio_g_hat = self.generator(mel)
                 mel_g_hat = torchaudio.transforms.MelSpectrogram(
