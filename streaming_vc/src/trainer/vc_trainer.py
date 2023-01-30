@@ -237,7 +237,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.d_feat(xs)
-            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 2.0
+            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 100.0
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -278,13 +278,14 @@ class Trainer:
 
             # ロギング
             if self.step % self.progress_step == 0:
+                ## mel error
+                mel_error = F.l1_loss(target_mel, target_mel_hat).item()
+
                 ## console
                 current_time = self.get_time()
                 print(
-                    f"[{current_time}][Step: {self.step}] mel gen loss: {sum(mel_gen_losses) / len(mel_gen_losses)}",
+                    f"[{current_time}][Step: {self.step}] mel gen loss: {sum(mel_gen_losses) / len(mel_gen_losses)}, mel error: {mel_error}",
                 )
-                ## mel error
-                mel_error = F.l1_loss(target_mel, target_mel_hat).item()
 
                 ## tensorboard
                 self.log.add_scalar(
