@@ -3,13 +3,14 @@ import os
 import pathlib
 from datetime import datetime
 
+import datasets
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torchaudio
 from src.data.finetune_data_loader import load_data
 from src.model.asr_model import ASRModel
-from src.model.generator import Generator
+from src.model.hifi_gan_generator import Generator
 from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
 from src.model.mel_gen_model import MelGenerateModel
