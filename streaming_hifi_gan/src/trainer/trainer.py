@@ -105,46 +105,26 @@ class Trainer:
         self.best_val_error = ckpt["best_val_error"]
         print(f"Load checkpoint from {ckpt_path}")
 
-    def save_ckpt(self, best: bool = False):
+    def save_ckpt(self):
         """
         ckptを保存する
-
-        Arguments:
-            best: bool
-                ベストスコアかどうか
         """
-        if best:
-            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-best.pt")
-            save_dict = {
-                "generator": self.generator.state_dict(),
-                "mpd": self.mpd.state_dict(),
-                "msd": self.msd.state_dict(),
-                "optimizer_g": self.optimizer_g.state_dict(),
-                "optimizer_d": self.optimizer_d.state_dict(),
-                "scheduler_g": self.scheduler_g.state_dict(),
-                "scheduler_d": self.scheduler_d.state_dict(),
-                "step": self.step,
-                "n_epochs": self.n_epochs,
-                "best_val_error": self.best_val_error,
-            }
-            torch.save(save_dict, ckpt_path)
-        else:
-            ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
-            latest_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
-            save_dict = {
-                "generator": self.generator.state_dict(),
-                "mpd": self.mpd.state_dict(),
-                "msd": self.msd.state_dict(),
-                "optimizer_g": self.optimizer_g.state_dict(),
-                "optimizer_d": self.optimizer_d.state_dict(),
-                "scheduler_g": self.scheduler_g.state_dict(),
-                "scheduler_d": self.scheduler_d.state_dict(),
-                "step": self.step,
-                "n_epochs": self.n_epochs,
-                "best_val_error": self.best_val_error,
-            }
-            torch.save(save_dict, ckpt_path)
-            torch.save(save_dict, latest_path)
+        # ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step:0>8}.pt")
+        latest_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
+        save_dict = {
+            "generator": self.generator.state_dict(),
+            "mpd": self.mpd.state_dict(),
+            "msd": self.msd.state_dict(),
+            "optimizer_g": self.optimizer_g.state_dict(),
+            "optimizer_d": self.optimizer_d.state_dict(),
+            "scheduler_g": self.scheduler_g.state_dict(),
+            "scheduler_d": self.scheduler_d.state_dict(),
+            "step": self.step,
+            "n_epochs": self.n_epochs,
+            "best_val_error": self.best_val_error,
+        }
+        # torch.save(save_dict, ckpt_path)
+        torch.save(save_dict, latest_path)
 
     def get_time(self) -> str:
         """
@@ -289,11 +269,6 @@ class Trainer:
 
         # 現在のckptをlatestとして保存
         self.save_ckpt()
-
-        # 指標が良くなっていたら保存
-        if val_err < self.best_val_error:
-            self.best_val_error = val_err
-            self.save_ckpt(best=True)
 
         # テストデータで試す
         with torch.no_grad():
