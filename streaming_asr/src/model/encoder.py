@@ -35,7 +35,6 @@ class EncoderLayer(nn.Module):
         self.norm2 = nn.LayerNorm(feature_size)
         self.feed_forward = nn.Sequential(
             nn.Linear(feature_size, 2048),
-            nn.BatchNorm1d(2048),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(2048, feature_size),
@@ -110,7 +109,7 @@ class Encoder(nn.Module):
 
         # feed forward
         self.fc = nn.Linear(512, self.out_feature_dim)
-        self.after_norm = nn.BatchNorm1d(self.out_feature_dim)
+        self.after_norm = nn.LayerNorm(self.out_feature_dim)
         self.sigmoid = nn.Sigmoid()
 
     def forward(
