@@ -168,7 +168,6 @@ class Trainer:
 
         d_feat_many_losses = []
         d_feat_target_losses = []
-        d_feat_text_losses = []
         d_feat_all_losses = []
 
         d_mel_many_losses = []
@@ -202,15 +201,7 @@ class Trainer:
             d_feat_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
             d_feat_target_losses.append(d_feat_target_loss.item())
 
-            xs = self.asr_model.feature_extractor(x_many)
-            xs = self.asr_model.encoder(xs)
-            text_wo_spk_rm = self.asr_model.ctc_layers(xs)
-            xs = self.spk_rm(xs)
-            text_w_spk_rm = self.asr_model.ctc_layers(xs)
-            d_feat_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 0.1
-            d_feat_text_losses.append(d_feat_text_loss.item())
-
-            d_feat_all_loss = d_feat_many_loss + d_feat_target_loss + d_feat_text_loss
+            d_feat_all_loss = d_feat_many_loss + d_feat_target_loss
             d_feat_all_losses.append(d_feat_all_loss.item())
 
             self.optimizer_d_feat.zero_grad()
@@ -307,11 +298,6 @@ class Trainer:
                     self.step,
                 )
                 self.log.add_scalar(
-                    "train/d_feat_text_loss",
-                    sum(d_feat_text_losses) / len(d_feat_text_losses),
-                    self.step,
-                )
-                self.log.add_scalar(
                     "train/d_feat_all_loss",
                     sum(d_feat_all_losses) / len(d_feat_all_losses),
                     self.step,
@@ -365,7 +351,6 @@ class Trainer:
                 # clear loss buffer
                 d_feat_many_losses = []
                 d_feat_target_losses = []
-                d_feat_text_losses = []
                 d_feat_all_losses = []
 
                 d_mel_many_losses = []
