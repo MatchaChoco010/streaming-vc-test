@@ -80,12 +80,12 @@ class Trainer:
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.0002)
-        self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=0.0002)
+        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.001)
+        self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=0.00002)
         self.optimizer_d_mel = optim.AdamW(self.d_mel.parameters(), lr=0.0002)
         self.optimizer_mel_gen = optim.AdamW(
             itertools.chain(self.spk_rm.parameters(), self.mel_gen.parameters()),
-            lr=0.0002,
+            lr=0.005,
         )
 
         if exp_name is not None:
