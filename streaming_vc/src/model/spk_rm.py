@@ -22,4 +22,5 @@ class SpeakerRemoval(nn.Module):
         xs = self.layers(xs)
         xs = self.bn(xs.transpose(1, 2))
         xs = self.after_layer(xs.transpose(1, 2))
+        # TODO Sigmoid
         return xs

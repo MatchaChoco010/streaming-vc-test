@@ -82,7 +82,7 @@ class Trainer:
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
         self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.00005)
-        self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=0.000001)
+        self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=0.00005)
         self.optimizer_d_mel = optim.AdamW(self.d_mel.parameters(), lr=0.00005)
         self.optimizer_mel_gen = optim.AdamW(
             itertools.chain(self.spk_rm.parameters(), self.mel_gen.parameters()),
@@ -181,56 +181,60 @@ class Trainer:
 
         mel_gen_losses = []
 
+        mel_errors = []
+
         while self.step < self.max_step:
             x_many = next(f_data_loader).to(self.device).squeeze(1)
             x_target, target_mel = next(r_data_loader)
             x_target = x_target.to(self.device).squeeze(1)
             target_mel = target_mel.to(self.device)
 
-            # d_featの学習
-            xs = self.asr_model.feature_extractor(x_many)
-            xs = self.asr_model.encoder(xs)
-            xs = self.spk_rm(xs)
-            xs = self.d_feat(xs)
-            d_feat_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
-            d_feat_many_losses.append(d_feat_many_loss.item())
+            if self.step % 4 == 0:
+                # d_featの学習
+                xs = self.asr_model.feature_extractor(x_many)
+                xs = self.asr_model.encoder(xs)
+                xs = self.spk_rm(xs)
+                xs = self.d_feat(xs)
+                d_feat_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
+                d_feat_many_losses.append(d_feat_many_loss.item())
 
-            xs = self.asr_model.feature_extractor(x_target)
-            xs = self.asr_model.encoder(xs)
-            xs = self.d_feat(xs)
-            d_feat_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
-            d_feat_target_losses.append(d_feat_target_loss.item())
+                xs = self.asr_model.feature_extractor(x_target)
+                xs = self.asr_model.encoder(xs)
+                xs = self.d_feat(xs)
+                d_feat_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+                d_feat_target_losses.append(d_feat_target_loss.item())
 
-            d_feat_all_loss = d_feat_many_loss + d_feat_target_loss
-            d_feat_all_losses.append(d_feat_all_loss.item())
+                d_feat_all_loss = d_feat_many_loss + d_feat_target_loss
+                d_feat_all_losses.append(d_feat_all_loss.item())
 
-            self.optimizer_d_feat.zero_grad()
-            d_feat_all_loss.backward()
-            self.optimizer_d_feat.step()
+                self.optimizer_d_feat.zero_grad()
+                d_feat_all_loss.backward()
+                self.optimizer_d_feat.step()
 
-            # d_melの学習
-            xs = self.asr_model.feature_extractor(x_many)
-            xs = self.asr_model.encoder(xs)
-            xs = self.spk_rm(xs)
-            xs = self.mel_gen(xs)
-            xs = self.d_mel(xs)
-            d_mel_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
-            d_mel_many_losses.append(d_mel_many_loss.item())
+            if self.step % 2 == 0:
+                # d_melの学習
+                xs = self.asr_model.feature_extractor(x_many)
+                xs = self.asr_model.encoder(xs)
+                xs = self.spk_rm(xs)
+                xs = self.mel_gen(xs)
+                xs = self.d_mel(xs)
+                d_mel_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
+                d_mel_many_losses.append(d_mel_many_loss.item())
 
-            xs = self.asr_model.feature_extractor(x_target)
-            xs = self.asr_model.encoder(xs)
-            xs = self.spk_rm(xs)
-            xs = self.mel_gen(xs)
-            xs = self.d_mel(xs)
-            d_mel_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
-            d_mel_target_losses.append(d_mel_target_loss.item())
+                xs = self.asr_model.feature_extractor(x_target)
+                xs = self.asr_model.encoder(xs)
+                xs = self.spk_rm(xs)
+                xs = self.mel_gen(xs)
+                xs = self.d_mel(xs)
+                d_mel_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+                d_mel_target_losses.append(d_mel_target_loss.item())
 
-            d_mel_all_loss = d_mel_many_loss + d_mel_target_loss
-            d_mel_all_losses.append(d_mel_all_loss.item())
+                d_mel_all_loss = d_mel_many_loss + d_mel_target_loss
+                d_mel_all_losses.append(d_mel_all_loss.item())
 
-            self.optimizer_d_mel.zero_grad()
-            d_mel_all_loss.backward()
-            self.optimizer_d_mel.step()
+                self.optimizer_d_mel.zero_grad()
+                d_mel_all_loss.backward()
+                self.optimizer_d_mel.step()
 
             # spk_rmの学習
             xs = self.asr_model.feature_extractor(x_many)
@@ -253,7 +257,7 @@ class Trainer:
             text_wo_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
             xs = self.spk_rm(xs)
             text_w_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
-            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 0.01
+            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 0.1
             spk_rm_text_losses.append(spk_rm_text_loss.item())
 
             spk_rm_all_loss = spk_rm_feat_loss + spk_rm_mel_loss + spk_rm_text_loss
@@ -269,22 +273,24 @@ class Trainer:
             xs = self.spk_rm(xs)
             target_mel_hat = self.mel_gen(xs)
 
-            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel) * 45.0
+            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel) * 25.0
             mel_gen_losses.append(mel_gen_loss.item())
 
             self.optimizer_mel_gen.zero_grad()
             mel_gen_loss.backward()
             self.optimizer_mel_gen.step()
 
+            ## mel error
+            mel_error = F.l1_loss(target_mel, target_mel_hat).item()
+            mel_errors.append(mel_error)
+
             # ロギング
             if self.step % self.progress_step == 0:
-                ## mel error
-                mel_error = F.l1_loss(target_mel, target_mel_hat).item()
 
                 ## console
                 current_time = self.get_time()
                 print(
-                    f"[{current_time}][Step: {self.step}] mel gen loss: {sum(mel_gen_losses) / len(mel_gen_losses)}, mel error: {mel_error}",
+                    f"[{current_time}][Step: {self.step}] mel gen loss: {sum(mel_gen_losses) / len(mel_gen_losses)}, mel error: {sum(mel_errors)/ len(mel_errors)}",
                 )
 
                 ## tensorboard
@@ -347,7 +353,9 @@ class Trainer:
                     self.step,
                 )
 
-                self.log.add_scalar("train/mel_error", mel_error, self.step)
+                self.log.add_scalar(
+                    "train/mel_error", sum(mel_errors) / len(mel_errors), self.step
+                )
 
                 # clear loss buffer
                 d_feat_many_losses = []
@@ -364,6 +372,8 @@ class Trainer:
                 spk_rm_all_losses = []
 
                 mel_gen_losses = []
+
+                mel_errors = []
 
                 if self.step % 100 == 0:
                     # 適当にmelをremapして画像として保存
