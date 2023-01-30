@@ -14,6 +14,7 @@ from src.model.hifi_gan_generator import Generator
 from src.model.hifi_gan_multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.hifi_gan_multi_scale_discriminator import MultiScaleDiscriminator
 from src.model.mel_gen import MelGenerate
+from src.model.spk_rm import SpeakerRemoval
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
@@ -71,11 +72,14 @@ class Finetune:
 
         self.asr_model = ASRModel(vocab_size=32).to(self.device)
         self.mel_gen = MelGenerate().to(self.device)
-        asr_ckpt = torch.load(vc_ckpt_path, map_location=self.device)
-        self.asr_model.load_state_dict(asr_ckpt["asr_model"])
-        self.mel_gen.load_state_dict(asr_ckpt["mel_gen"])
+        self.spk_rm = SpeakerRemoval().to(self.device)
+        ckpt = torch.load(vc_ckpt_path, map_location=self.device)
+        self.asr_model.load_state_dict(ckpt["asr_model"])
+        self.mel_gen.load_state_dict(ckpt["mel_gen"])
+        self.spk_rm.load_state_dict(ckpt["spk_rm"])
         self.asr_model.eval()
         self.mel_gen.eval()
+        self/spk_rm.eval()
 
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
 
@@ -109,6 +113,7 @@ class Finetune:
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(ckpt["asr_model"])
+        self.spk_rm.load_state_dict(ckpt["spk_rm"])
         self.mel_gen.load_state_dict(ckpt["mel_gen"])
         self.generator.load_state_dict(ckpt["generator"])
         self.mpd.load_state_dict(ckpt["mpd"])
@@ -127,6 +132,7 @@ class Finetune:
         latest_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         save_dict = {
             "asr_model": self.asr_model.state_dict(),
+            "spk_rm": self.spk_rm.state_dict(),
             "mel_gen": self.mel_gen.state_dict(),
             "generator": self.generator.state_dict(),
             "mpd": self.mpd.state_dict(),
