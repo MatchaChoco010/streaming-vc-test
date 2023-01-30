@@ -24,6 +24,8 @@ def finetune(
     progress_step: int,
     valid_step: int,
     exp_name: str | None,
+    ckpt_dir: str,
+    log_dir: str,
 ):
     ft = Finetune(
         dataset_dir=dataset_dir,
@@ -35,6 +37,8 @@ def finetune(
         progress_step=progress_step,
         valid_step=valid_step,
         exp_name=exp_name,
+        ckpt_dir=ckpt_dir,
+        log_dir=log_dir,
     )
     ft.run()
 
@@ -50,6 +54,8 @@ if __name__ == "__main__":
     parser.add_argument("--progress_step", default=progress_step)
     parser.add_argument("--valid_step", default=valid_step)
     parser.add_argument("--exp_name", default=exp_name)
+    parser.add_argument("--ckpt_dir", default="output/finetune/ckpt")
+    parser.add_argument("--log_dir", default="output/finetune/log")
     args = parser.parse_args()
     finetune(
         dataset_dir=args.voice_data_dir,
@@ -61,4 +67,6 @@ if __name__ == "__main__":
         progress_step=args.progress_step,
         valid_step=args.valid_step,
         exp_name=args.exp_name,
+        ckpt_dir=args.ckpt_dir,
+        log_dir=args.log_dir,
     )
