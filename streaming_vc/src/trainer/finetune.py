@@ -13,7 +13,7 @@ from src.model.asr_model import ASRModel
 from src.model.hifi_gan_generator import Generator
 from src.model.hifi_gan_multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.hifi_gan_multi_scale_discriminator import MultiScaleDiscriminator
-from src.model.mel_gen_model import MelGenerateModel
+from src.model.mel_gen import MelGenerate
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
@@ -68,12 +68,12 @@ class Finetune:
         self.train_loader = load_data(self.dataset_dir, self.batch_size)
 
         self.asr_model = ASRModel(vocab_size=32).to(self.device)
-        self.mel_gen_model = MelGenerateModel().to(self.device)
+        self.mel_gen = MelGenerate().to(self.device)
         asr_ckpt = torch.load(vc_ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(asr_ckpt["asr_model"])
-        self.mel_gen_model.load_state_dict(asr_ckpt["mel_gen_model"])
+        self.mel_gen.load_state_dict(asr_ckpt["mel_gen"])
         self.asr_model.eval()
-        self.mel_gen_model.eval()
+        self.mel_gen.eval()
 
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
 
@@ -107,7 +107,7 @@ class Finetune:
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(ckpt["asr_model"])
-        self.mel_gen_model.load_state_dict(ckpt["mel_gen_model"])
+        self.mel_gen.load_state_dict(ckpt["mel_gen"])
         self.generator.load_state_dict(ckpt["generator"])
         self.mpd.load_state_dict(ckpt["mpd"])
         self.msd.load_state_dict(ckpt["msd"])
@@ -125,7 +125,7 @@ class Finetune:
         latest_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         save_dict = {
             "asr_model": self.asr_model.state_dict(),
-            "mel_gen_model": self.mel_gen_model.state_dict(),
+            "mel_gen": self.mel_gen.state_dict(),
             "generator": self.generator.state_dict(),
             "mpd": self.mpd.state_dict(),
             "msd": self.msd.state_dict(),
@@ -175,7 +175,7 @@ class Finetune:
                 feat = self.asr_model.feature_extractor(audio.squeeze(1))
                 feature = self.asr_model.encoder(feat)
 
-                mel_hat = self.mel_gen_model(feature)
+                mel_hat = self.mel_gen(feature)
 
                 # HiFi-GAN finetune
                 audio_g_hat = self.generator(mel_hat)
@@ -341,7 +341,7 @@ class Finetune:
                     else:
                         mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.mel_gen_model(mel_history[:, -history_size:, :])[
+                    mel_hat = self.mel_gen(mel_history[:, -history_size:, :])[
                         :, :, -6:
                     ]
 
