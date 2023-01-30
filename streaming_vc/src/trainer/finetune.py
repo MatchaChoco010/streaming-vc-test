@@ -341,7 +341,7 @@ class Finetune:
                         feat_history = torch.cat([feat_history, feat], dim=1)
 
                     feature = self.asr_model.encoder(
-                        self.spk_rm(feat_history[:, -history_size:, :])
+                        feat_history[:, -history_size:, :]
                     )[:, -6:, :]
 
                     if mel_history is None:
@@ -349,7 +349,9 @@ class Finetune:
                     else:
                         mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.mel_gen(mel_history[:, -history_size:, :])[:, :, -6:]
+                    mel_hat = self.mel_gen(
+                        self.spk_rm(mel_history[:, -history_size:, :])
+                    )[:, :, -6:]
 
                     if mel_hat_history is None:
                         mel_hat_history = mel_hat
