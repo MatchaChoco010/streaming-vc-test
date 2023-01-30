@@ -79,7 +79,7 @@ class Finetune:
         self.spk_rm.load_state_dict(ckpt["spk_rm"])
         self.asr_model.eval()
         self.mel_gen.eval()
-        self/spk_rm.eval()
+        self.spk_rm.eval()
 
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
 
@@ -349,9 +349,7 @@ class Finetune:
                     else:
                         mel_history = torch.cat([mel_history, feature], dim=1)
 
-                    mel_hat = self.mel_gen(mel_history[:, -history_size:, :])[
-                        :, :, -6:
-                    ]
+                    mel_hat = self.mel_gen(mel_history[:, -history_size:, :])[:, :, -6:]
 
                     if mel_hat_history is None:
                         mel_hat_history = mel_hat
