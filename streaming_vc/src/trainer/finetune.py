@@ -4,7 +4,6 @@ import pathlib
 from datetime import datetime
 
 import datasets
-import numpy as np
 import torch
 import torch.nn.functional as F
 import torchaudio
@@ -182,6 +181,7 @@ class Finetune:
 
                 feat = self.asr_model.feature_extractor(audio.squeeze(1))
                 feature = self.asr_model.encoder(feat)
+                feature = self.spk_rm(feature)
 
                 mel_hat = self.mel_gen(feature)
 
@@ -341,7 +341,7 @@ class Finetune:
                         feat_history = torch.cat([feat_history, feat], dim=1)
 
                     feature = self.asr_model.encoder(
-                        feat_history[:, -history_size:, :]
+                        self.spk_rm(feat_history[:, -history_size:, :])
                     )[:, -6:, :]
 
                     if mel_history is None:
