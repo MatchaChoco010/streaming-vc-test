@@ -269,7 +269,7 @@ class Trainer:
             xs = self.spk_rm(xs)
             target_mel_hat = self.mel_gen(xs)
 
-            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel)
+            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel) * 45.0
             mel_gen_losses.append(mel_gen_loss.item())
 
             self.optimizer_mel_gen.zero_grad()
