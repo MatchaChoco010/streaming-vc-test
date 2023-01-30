@@ -11,8 +11,8 @@ import torchaudio
 from src.data.finetune_data_loader import load_data
 from src.model.asr_model import ASRModel
 from src.model.hifi_gan_generator import Generator
-from src.model.multi_period_discriminator import MultiPeriodDiscriminator
-from src.model.multi_scale_discriminator import MultiScaleDiscriminator
+from src.model.hifi_gan_multi_period_discriminator import MultiPeriodDiscriminator
+from src.model.hifi_gan_multi_scale_discriminator import MultiScaleDiscriminator
 from src.model.mel_gen_model import MelGenerateModel
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
