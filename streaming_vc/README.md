@@ -27,6 +27,10 @@ poetry run python bin/finetune.py --voice_data_dir "voice_data/methane-resampled
 
 ## 4 ボイスモデルのパック
 
+```
+poetry run python bin/export.py --ckpt "output/finetune/ckpt/exp-20230131-075711/ckpt-latest.pt"
+```
+
 次のコマンドでボイスモデルをパックする
 
 ```

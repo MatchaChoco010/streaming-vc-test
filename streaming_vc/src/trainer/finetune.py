@@ -19,7 +19,7 @@ from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
-SEGMENT_SIZE = 6 * 256 * 16
+SEGMENT_SIZE = 6 * 256 * 24
 
 
 class Finetune:
@@ -93,12 +93,12 @@ class Finetune:
 
         self.optimizer_g = optim.AdamW(
             self.generator.parameters(),
-            lr=0.0002,
+            lr=0.00002,
             betas=(0.8, 0.99),
         )
         self.optimizer_d = optim.AdamW(
             itertools.chain(self.mpd.parameters(), self.msd.parameters()),
-            lr=0.0002,
+            lr=0.00002,
             betas=(0.8, 0.99),
         )
 
