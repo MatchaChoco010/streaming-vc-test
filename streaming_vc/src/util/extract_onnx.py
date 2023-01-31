@@ -37,16 +37,14 @@ def extract(ckpt_path: str):
 
     torch.onnx.export(
         feature_extractor,
-        (
-            torch.zeros(1, 24000 * 64 // 1000).to(dtype=torch.float),
-        ),
+        (torch.zeros(1, 24000 * 64 // 1000).to(dtype=torch.float),),
         "output/onnx/feature_extractor.orig.onnx",
         verbose=False,
         export_params=True,
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=17,
+        opset_version=15,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batchsize", 1: "seq_len"},
@@ -54,16 +52,14 @@ def extract(ckpt_path: str):
     )
     torch.onnx.export(
         encoder,
-        (
-            torch.ones(1, 8, 240).to(dtype=torch.float),
-        ),
+        (torch.ones(1, 8, 240).to(dtype=torch.float),),
         "output/onnx/encoder.orig.onnx",
         verbose=False,
         export_params=True,
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=17,
+        opset_version=15,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batch_size", 1: "seq_len"},
@@ -78,7 +74,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=17,
+        opset_version=15,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batch_size", 1: "seq_len"},
@@ -93,7 +89,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=17,
+        opset_version=15,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batch_size", 2: "seq_len"},
@@ -108,7 +104,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=17,
+        opset_version=15,
         dynamic_axes={
             "input": {0: "batch_size", 2: "seq_len"},
             "output": {0: "batch_size", 1: "seq_len"},
