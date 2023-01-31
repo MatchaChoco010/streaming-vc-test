@@ -177,9 +177,7 @@ class Finetune:
         while self.step < self.max_step:
             for audio, mel in self.train_loader:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
-                mel = torch.autograd.Variable(mel.to(device=self.device))[
-                    :, :, : SEGMENT_SIZE // 256
-                ]
+                mel = torch.autograd.Variable(mel.to(device=self.device))
 
                 feat = self.asr_model.feature_extractor(audio.squeeze(1))
                 feature = self.asr_model.encoder(feat)

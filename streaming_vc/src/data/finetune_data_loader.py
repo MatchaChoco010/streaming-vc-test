@@ -9,7 +9,7 @@ from datasets import load_dataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, IterableDataset, Dataset
 
-SEGMENT_SIZE = 6 * 256 * 16
+SEGMENT_SIZE = 6 * 256 * 24
 
 
 class VCDataset(IterableDataset):
