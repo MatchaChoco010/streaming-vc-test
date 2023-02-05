@@ -110,6 +110,7 @@ class Encoder(nn.Module):
         # feed forward
         self.fc = nn.Linear(512, self.out_feature_dim)
         self.after_norm = nn.LayerNorm(self.out_feature_dim)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(
         self, input_features: torch.Tensor
@@ -143,6 +144,9 @@ class Encoder(nn.Module):
 
         # Normalization
         xs = self.after_norm(self.fc(xs))
+
+        # Sigmoid
+        xs = self.sigmoid(xs)
         # assert xs.shape == (batch_size, seq_length, self.out_feature_dim)
 
         return xs
