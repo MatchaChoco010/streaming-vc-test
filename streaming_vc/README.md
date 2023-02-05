@@ -19,6 +19,10 @@ poetry run python bin/prepare_voice_data.py --voice_data_dir "voice_data/tyc" --
 poetry run python bin/vc_train.py --voice_data_dir "voice_data/methane-resampled" --testdata_dir "test_data" --asr_ckpt_path "models/asr-best.pt" --vocoder_ckpt_path "models/hifi-gan-best.pt"
 ```
 
+```
+poetry run python bin/vc_train.py --voice_data_dir "voice_data/tyc-resampled" --testdata_dir "test_data" --asr_ckpt_path "models/asr-latest.pt" --vocoder_ckpt_path "models/hifi-gan-latest.pt"
+```
+
 ## 3 hifi-ganのファインチューニング
 
 ```

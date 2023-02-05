@@ -30,7 +30,7 @@ class DiscriminatorFeat(nn.Module):
     def __init__(self):
         super(DiscriminatorFeat, self).__init__()
         self.conv = nn.Sequential(
-            nn.Conv1d(32, 512, kernel_size=7),
+            nn.Conv1d(128, 512, kernel_size=7),
             nn.LeakyReLU(0.2),
             nn.Conv1d(512, 512, kernel_size=7),
             nn.BatchNorm1d(512),

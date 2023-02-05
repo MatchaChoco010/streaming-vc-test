@@ -11,7 +11,7 @@ class MelGenerate(nn.Module):
     def __init__(self):
         super(MelGenerate, self).__init__()
         self.layers = nn.Sequential(
-            FFTBlockST(32, 512),
+            FFTBlockST(128, 512),
             FFTBlockST(512, 512),
             FFTBlockST(512, 512),
             nn.Linear(512, 80),
