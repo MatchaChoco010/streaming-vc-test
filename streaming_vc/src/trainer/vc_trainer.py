@@ -189,7 +189,7 @@ class Trainer:
             x_target = x_target.to(self.device).squeeze(1)
             target_mel = target_mel.to(self.device)
 
-            if self.step % 2 == 0:
+            if self.step % 4 == 0:
                 # d_featの学習
                 xs = self.asr_model.feature_extractor(x_many)
                 xs = self.asr_model.encoder(xs)
@@ -211,7 +211,7 @@ class Trainer:
                 d_feat_all_loss.backward()
                 self.optimizer_d_feat.step()
 
-            if self.step % 4 == 0:
+            if self.step % 2 == 0:
                 # d_melの学習
                 xs = self.asr_model.feature_extractor(x_many)
                 xs = self.asr_model.encoder(xs)
