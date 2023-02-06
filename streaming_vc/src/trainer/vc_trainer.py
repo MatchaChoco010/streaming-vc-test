@@ -86,7 +86,7 @@ class Trainer:
         self.optimizer_d_mel = optim.AdamW(self.d_mel.parameters(), lr=0.000005)
         self.optimizer_mel_gen = optim.AdamW(
             itertools.chain(self.spk_rm.parameters(), self.mel_gen.parameters()),
-            lr=0.0001,
+            lr=0.0005,
         )
 
         if exp_name is not None:
