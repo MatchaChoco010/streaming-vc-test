@@ -257,7 +257,7 @@ class Trainer:
             text_wo_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
             xs = self.spk_rm(xs)
             text_w_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
-            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm)
+            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 5.0
             spk_rm_text_losses.append(spk_rm_text_loss.item())
 
             spk_rm_all_loss = spk_rm_feat_loss + spk_rm_mel_loss + spk_rm_text_loss
