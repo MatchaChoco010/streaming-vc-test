@@ -81,7 +81,7 @@ class Trainer:
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.001)
+        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.0001)
         self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=0.000005)
         self.optimizer_d_mel = optim.AdamW(self.d_mel.parameters(), lr=0.000005)
         self.optimizer_mel_gen = optim.AdamW(
@@ -241,7 +241,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.d_feat(xs)
-            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 5.0
+            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -249,7 +249,7 @@ class Trainer:
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
             xs = self.d_mel(xs)
-            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 5.0
             spk_rm_mel_losses.append(spk_rm_mel_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
