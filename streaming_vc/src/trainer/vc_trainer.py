@@ -241,7 +241,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.d_feat(xs)
-            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 5.0
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -249,7 +249,7 @@ class Trainer:
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
             xs = self.d_mel(xs)
-            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 5.0
             spk_rm_mel_losses.append(spk_rm_mel_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -273,7 +273,7 @@ class Trainer:
             xs = self.spk_rm(xs)
             target_mel_hat = self.mel_gen(xs)
 
-            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel) * 25.0
+            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel) * 45.0
             mel_gen_losses.append(mel_gen_loss.item())
 
             self.optimizer_mel_gen.zero_grad()
