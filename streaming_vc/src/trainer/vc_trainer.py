@@ -241,7 +241,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.d_feat(xs)
-            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 5.0
+            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 45.0
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -249,7 +249,7 @@ class Trainer:
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
             xs = self.d_mel(xs)
-            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 5.0
+            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 45.0
             spk_rm_mel_losses.append(spk_rm_mel_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -257,7 +257,7 @@ class Trainer:
             text_wo_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
             xs = self.spk_rm(xs)
             text_w_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
-            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm)
+            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 5.0
             spk_rm_text_losses.append(spk_rm_text_loss.item())
 
             spk_rm_all_loss = spk_rm_feat_loss + spk_rm_mel_loss + spk_rm_text_loss
