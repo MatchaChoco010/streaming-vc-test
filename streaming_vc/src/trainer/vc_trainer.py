@@ -241,7 +241,7 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.d_feat(xs)
-            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 5.0
+            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 12.0
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
