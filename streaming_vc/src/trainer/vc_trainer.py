@@ -249,7 +249,7 @@ class Trainer:
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
             xs = self.d_mel(xs)
-            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 10.0
+            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 8.0
             spk_rm_mel_losses.append(spk_rm_mel_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
