@@ -67,7 +67,7 @@ def extract(ckpt_path: str):
     )
     torch.onnx.export(
         spk_rm,
-        (torch.ones(1, 8, 32).to(dtype=torch.float),),
+        (torch.ones(1, 8, 128).to(dtype=torch.float),),
         "output/onnx/spk_rm.orig.onnx",
         verbose=False,
         export_params=True,
@@ -82,7 +82,7 @@ def extract(ckpt_path: str):
     )
     torch.onnx.export(
         mel_gen,
-        (torch.ones(1, 8, 32).to(dtype=torch.float),),
+        (torch.ones(1, 8, 128).to(dtype=torch.float),),
         "output/onnx/mel_gen.orig.onnx",
         verbose=False,
         export_params=True,
