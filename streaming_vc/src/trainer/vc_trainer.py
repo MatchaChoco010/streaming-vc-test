@@ -65,7 +65,7 @@ class Trainer:
         self.d_feat_lr = 0.00001
         self.d_mel_lr = 0.00001
         self.mel_gen_lr = 0.001
-        self.spk_rm_feat_loss_scale = 8.0
+        self.spk_rm_feat_loss_scale = 14.0
         self.spk_rm_mel_loss_scale = 1.0
         self.spk_rm_text_loss_scale = 28.0
         self.mel_gen_loss_scale = 45.0
