@@ -153,7 +153,7 @@ class Trainer:
                 "step": self.step,
                 "best_cer": self.best_cer,
             }
-            torch.save(save_dict, ckpt_path)
+            # torch.save(save_dict, ckpt_path)
 
             ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
             torch.save(save_dict, ckpt_path)
