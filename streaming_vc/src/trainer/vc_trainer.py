@@ -61,6 +61,28 @@ class Trainer:
         self.log_dir = os.path.join(log_dir, self.exp_name)
         self.log = SummaryWriter(self.log_dir)
 
+        self.spk_rm_lr = 0.001
+        self.d_feat_lr = 0.000025
+        self.d_mel_lr = 0.000025
+        self.mel_gen_lr = 0.001
+        self.spk_rm_feat_loss_scale = 5.0
+        self.spk_rm_mel_loss_scale = 1.0
+        self.spk_rm_text_loss_scale = 18.0
+        self.mel_gen_loss_scale = 45.0
+
+        self.log.add_text(
+            "train/params",
+            f"spl_rm_lr: {self.spk_rm_lr}\n"
+            + f"d_feat_lr: {self.d_feat_lr}\n"
+            + f"d_mel_lr: {self.d_mel_lr}\n"
+            + f"mel_gen_lr: {self.mel_gen_lr}\n"
+            + f"spk_rm_feat_loss_scale: {self.spk_rm_feat_loss_scale}\n"
+            + f"spk_rm_mel_loss_scale: {self.spk_rm_mel_loss_scale}\n"
+            + f"spk_rm_text_loss_scale: {self.spk_rm_text_loss_scale}\n"
+            + f"mel_gen_loss_scale: {self.mel_gen_loss_scale}",
+            0,
+        )
+
         self.step = 0
         self.start_time = datetime.now()
 
@@ -81,12 +103,12 @@ class Trainer:
         vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
         self.vocoder.load_state_dict(vocoder_ckpt["generator"])
 
-        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=0.001)
-        self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=0.0000025)
-        self.optimizer_d_mel = optim.AdamW(self.d_mel.parameters(), lr=0.0000025)
+        self.optimizer_spk_rm = optim.AdamW(self.spk_rm.parameters(), lr=self.spk_rm_lr)
+        self.optimizer_d_feat = optim.AdamW(self.d_feat.parameters(), lr=self.d_feat_lr)
+        self.optimizer_d_mel = optim.AdamW(self.d_mel.parameters(), lr=self.d_mel_lr)
         self.optimizer_mel_gen = optim.AdamW(
             itertools.chain(self.spk_rm.parameters(), self.mel_gen.parameters()),
-            lr=0.0005,
+            lr=self.mel_gen_lr,
         )
 
         if exp_name is not None:
@@ -241,7 +263,10 @@ class Trainer:
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             xs = self.d_feat(xs)
-            spk_rm_feat_loss = F.binary_cross_entropy(xs, torch.ones_like(xs)) * 3.0
+            spk_rm_feat_loss = (
+                F.binary_cross_entropy(xs, torch.ones_like(xs))
+                * self.spk_rm_feat_loss_scale
+            )
             spk_rm_feat_losses.append(spk_rm_feat_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -249,7 +274,10 @@ class Trainer:
             xs = self.spk_rm(xs)
             xs = self.mel_gen(xs)
             xs = self.d_mel(xs)
-            spk_rm_mel_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
+            spk_rm_mel_loss = (
+                F.binary_cross_entropy(xs, torch.ones_like(xs))
+                * self.spk_rm_mel_loss_scale
+            )
             spk_rm_mel_losses.append(spk_rm_mel_loss.item())
 
             xs = self.asr_model.feature_extractor(x_many)
@@ -257,7 +285,9 @@ class Trainer:
             text_wo_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
             xs = self.spk_rm(xs)
             text_w_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
-            spk_rm_text_loss = F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * 12.0
+            spk_rm_text_loss = (
+                F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * self.spk_rm_text_loss_scale
+            )
             spk_rm_text_losses.append(spk_rm_text_loss.item())
 
             spk_rm_all_loss = spk_rm_feat_loss + spk_rm_mel_loss + spk_rm_text_loss
@@ -273,7 +303,9 @@ class Trainer:
             xs = self.spk_rm(xs)
             target_mel_hat = self.mel_gen(xs)
 
-            mel_gen_loss = F.mse_loss(target_mel_hat, target_mel) * 45.0
+            mel_gen_loss = (
+                F.mse_loss(target_mel_hat, target_mel) * self.mel_gen_loss_scale
+            )
             mel_gen_losses.append(mel_gen_loss.item())
 
             self.optimizer_mel_gen.zero_grad()

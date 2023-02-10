@@ -5,19 +5,11 @@
 学習用wavファイルを入れたvoice_dataディレクトリを渡して次のコマンドを実行する。
 
 ```
-poetry run python bin/prepare_voice_data.py --voice_data_dir "voice_data/methane_voice_data/emotion/normal" --output_dir "voice_data/methane-resampled"
-```
-
-```
 poetry run python bin/prepare_voice_data.py --voice_data_dir "voice_data/tyc" --output_dir "voice_data/tyc-resampled"
 ```
 
 
 ## 2 モデルの学習
-
-```
-poetry run python bin/vc_train.py --voice_data_dir "voice_data/methane-resampled" --testdata_dir "test_data" --asr_ckpt_path "models/asr-best.pt" --vocoder_ckpt_path "models/hifi-gan-best.pt"
-```
 
 ```
 poetry run python bin/vc_train.py --voice_data_dir "voice_data/tyc-resampled" --testdata_dir "test_data" --asr_ckpt_path "models/asr-latest.pt" --vocoder_ckpt_path "models/hifi-gan-latest.pt"
