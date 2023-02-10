@@ -67,7 +67,9 @@ class VCGanFakeDataset(IterableDataset):
 
     def __init__(self):
         self.dataset = load_dataset(  # type: ignore
-            "reazon-research/reazonspeech", "small" # , streaming=True
+            "reazon-research/reazonspeech",
+            "all",
+            split="all[:2%]",  # 全部ダウンロードするとでかすぎるので、2%だけダウンロードする
         )["train"]
 
     def __iter__(self):
