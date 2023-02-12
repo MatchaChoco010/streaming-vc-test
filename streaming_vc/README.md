@@ -18,7 +18,7 @@ poetry run python bin/vc_train.py --voice_data_dir "voice_data/tyc-resampled" --
 ## 3 hifi-ganのファインチューニング
 
 ```
-poetry run python bin/finetune.py --voice_data_dir "voice_data/methane-resampled" --testdata_dir "test_data" --vocoder_ckpt_path "models/hifi-gan-best.pt" --vc_ckpt_path "output/vc/ckpt/exp-XXXXXXXX-XXXXXX/ckpt-latest.pt"
+poetry run python bin/finetune.py --voice_data_dir "voice_data/tyc-resampled" --testdata_dir "test_data" --vocoder_ckpt_path "models/hifi-gan-latest.pt" --vc_ckpt_path "output/vc/ckpt/exp-XXXXXXXX-XXXXXX/ckpt-latest.pt"
 ```
 
 ## 4 ボイスモデルのパック

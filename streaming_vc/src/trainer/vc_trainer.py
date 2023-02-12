@@ -65,8 +65,8 @@ class Trainer:
         self.d_feat_lr = 0.0001
         self.d_mel_lr = 0.0001
         self.mel_gen_lr = 0.001
-        self.spk_rm_feat_loss_scale = 1.0
-        self.spk_rm_mel_loss_scale = 0.0
+        self.spk_rm_feat_loss_scale = 0.0
+        self.spk_rm_mel_loss_scale = 8.0
         self.spk_rm_text_loss_scale = 48.0
         self.mel_gen_loss_scale = 64.0
 
@@ -445,7 +445,7 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            history_size = 6 * 24
+            history_size = 6 * 256
             vocoder_history_size = 16
 
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
@@ -458,10 +458,12 @@ class Trainer:
                 y = torchaudio.transforms.Resample(sr, 24000)(y).squeeze(0)
                 y = y.to(device=self.device)
 
+                # historyを初期化
+                feat_history = torch.zeros((1, history_size, 240))
+                feature_history = torch.zeros((1, history_size, 128))
+                mel_hat_history = torch.zeros((1, history_size, 80))
+
                 # melを64msずつずらしながら食わせることでstreamingで生成する
-                feat_history: torch.Tensor | None = None
-                mel_history: torch.Tensor | None = None
-                mel_hat_history: torch.Tensor | None = None
                 audio_items = []
                 for i in range(0, y.shape[0], 256 * 6):
                     audio = y[i : i + 256 * 6]
@@ -479,12 +481,14 @@ class Trainer:
                         self.asr_model.encoder(feat_history[:, -history_size:, :])
                     )[:, -6:, :]
 
-                    if mel_history is None:
-                        mel_history = feature
+                    if feature_history is None:
+                        feature_history = feature
                     else:
-                        mel_history = torch.cat([mel_history, feature], dim=1)
+                        feature_history = torch.cat([feature_history, feature], dim=1)
 
-                    mel_hat = self.mel_gen(mel_history[:, -history_size:, :])[:, :, -6:]
+                    mel_hat = self.mel_gen(feature_history[:, -history_size:, :])[
+                        :, :, -6:
+                    ]
 
                     if mel_hat_history is None:
                         mel_hat_history = mel_hat

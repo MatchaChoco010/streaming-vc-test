@@ -10,7 +10,7 @@ from datasets import load_dataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, IterableDataset
 
-MAX_AUDIO_LENGTH = 6 * 256 * 32
+MAX_AUDIO_LENGTH = 6 * 256 * 256
 
 
 class VCGanRealDataset(IterableDataset):
