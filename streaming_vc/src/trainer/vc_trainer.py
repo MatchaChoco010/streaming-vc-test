@@ -62,23 +62,23 @@ class Trainer:
         self.log = SummaryWriter(self.log_dir)
 
         self.spk_rm_lr = 0.001
-        self.d_feat_lr = 0.00001
-        self.d_mel_lr = 0.00001
+        self.d_feat_lr = 0.0001
+        self.d_mel_lr = 0.0001
         self.mel_gen_lr = 0.001
-        self.spk_rm_feat_loss_scale = 14.0
+        self.spk_rm_feat_loss_scale = 1.0
         self.spk_rm_mel_loss_scale = 0.0
-        self.spk_rm_text_loss_scale = 56.0
+        self.spk_rm_text_loss_scale = 48.0
         self.mel_gen_loss_scale = 64.0
 
         self.log.add_text(
             "train/params",
-            f"spl_rm_lr: {self.spk_rm_lr}\t\n"
-            + f"d_feat_lr: {self.d_feat_lr}\t\n"
-            + f"d_mel_lr: {self.d_mel_lr}\t\n"
-            + f"mel_gen_lr: {self.mel_gen_lr}\t\n"
-            + f"spk_rm_feat_loss_scale: {self.spk_rm_feat_loss_scale}\t\n"
-            + f"spk_rm_mel_loss_scale: {self.spk_rm_mel_loss_scale}\t\n"
-            + f"spk_rm_text_loss_scale: {self.spk_rm_text_loss_scale}\t\n"
+            f"spl_rm_lr: {self.spk_rm_lr}  \n"
+            + f"d_feat_lr: {self.d_feat_lr}  \n"
+            + f"d_mel_lr: {self.d_mel_lr}  \n"
+            + f"mel_gen_lr: {self.mel_gen_lr}  \n"
+            + f"spk_rm_feat_loss_scale: {self.spk_rm_feat_loss_scale}  \n"
+            + f"spk_rm_mel_loss_scale: {self.spk_rm_mel_loss_scale}  \n"
+            + f"spk_rm_text_loss_scale: {self.spk_rm_text_loss_scale}  \n"
             + f"mel_gen_loss_scale: {self.mel_gen_loss_scale}",
             0,
         )
