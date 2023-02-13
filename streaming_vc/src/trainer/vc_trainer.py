@@ -461,7 +461,9 @@ class Trainer:
                 # historyを初期化
                 feat_history = torch.zeros((1, history_size, 240)).to(self.device)
                 feature_history = torch.zeros((1, history_size, 128)).to(self.device)
-                mel_hat_history = torch.zeros((1, history_size, 80)).to(self.device)
+                mel_hat_history = torch.zeros((1, 80, vocoder_history_size)).to(
+                    self.device
+                )
 
                 # melを64msずつずらしながら食わせることでstreamingで生成する
                 audio_items = []
