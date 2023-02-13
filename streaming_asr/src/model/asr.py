@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 
 import torch
 import torch.nn as nn
@@ -31,7 +31,7 @@ class ASR(nn.Module):
 
         # モジュール
         self.feature_extractor = FeatureExtractor()
-        self.encoder = Encoder(self.input_feature_size, self.decoder_feature_size)
+        self.encoder = Encoder(self.input_feature_size, self.decoder_feature_size, 256)
         self.decoder = Decoder(self.decoder_feature_size, vocab_size)
         self.ctc_layers = nn.Linear(self.decoder_feature_size, vocab_size, bias=False)
 
@@ -84,7 +84,9 @@ class ASR(nn.Module):
         audio_feature = torch.cat(audio_features, dim=1)
 
         # encode
-        encode_feature, encode_len = self.encoder(audio_feature, audio_len)
+        encode_feature, encode_len = self.encoder.forward_train(
+            audio_feature, audio_len
+        )
 
         # ctc
         ctc_output = self.ctc_layers(encode_feature)
@@ -136,12 +138,40 @@ class ASR(nn.Module):
         audio_feature = torch.cat(audio_features, dim=1)
 
         # encode
-        encode_feature, encode_len = self.encoder(audio_feature, audio_len)
+        # history_layer_1 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
+        # history_layer_2 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
+        # history_layer_3 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
+        # history_layer_4 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
+        # history_layer_5 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
+        # history_layer_6 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
+        # encoder_feature_items: List[torch.Tensor] = []
+        # for i in range(0, audio_feature.shape[1], 6):
+        #     (
+        #         encoder_feature_item,
+        #         history_layer_1,
+        #         history_layer_2,
+        #         history_layer_3,
+        #         history_layer_4,
+        #         history_layer_5,
+        #         history_layer_6,
+        #     ) = self.encoder(
+        #         audio_feature[:, i : i + 6],
+        #         history_layer_1,
+        #         history_layer_2,
+        #         history_layer_3,
+        #         history_layer_4,
+        #         history_layer_5,
+        #         history_layer_6,
+        #     )
+        #     encoder_feature_items.append(encoder_feature_item)
+        # encode_feature = torch.cat(encoder_feature_items, dim=1)
+        encode_feature, encode_len = self.encoder.forward_train(audio_feature, audio_len)
 
         # ctc
         ctc_output = self.ctc_layers(encode_feature)
 
         # att
+        # encode_len = encode_feature.shape[1] * torch.ones(batch_size, dtype=torch.long)
         att_output = self.decoder.forward_test(encode_feature, encode_len, decode_step)
 
         return encode_len, ctc_output, att_output

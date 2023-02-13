@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from src.module.mask import chunk_mask, length_mask
 from src.module.multi_head_attention import MultiHeadAttention
-from src.module.positional_encoding import PositionalEncoding
+from src.module.positional_encoding import ChunkPositionalEncoding
 
 CHUNK_SIZE = 6
 
@@ -15,7 +15,7 @@ class EncoderLayer(nn.Module):
     self attentionとfeed forwardをresidual結合したレイヤーとなっている。
     """
 
-    def __init__(self, feature_size: int):
+    def __init__(self, feature_size: int, history_length: int):
         """
         Arguments:
             feature_size: int
@@ -23,13 +23,13 @@ class EncoderLayer(nn.Module):
         """
         super(EncoderLayer, self).__init__()
         self.out_feature_dim = feature_size
+        self.history_length = history_length
 
         # Attention層
         self.norm1 = nn.LayerNorm(feature_size)
         self.attention = MultiHeadAttention(
             4, feature_size, feature_size, feature_size, feature_size
         )
-        self.dropout1 = nn.Dropout(0.1)
 
         # Feed Forward層
         self.norm2 = nn.LayerNorm(feature_size)
@@ -39,9 +39,42 @@ class EncoderLayer(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(2048, feature_size),
         )
-        self.dropout2 = nn.Dropout(0.1)
 
-    def forward(self, xs, mask) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, chunk, history) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Arguments:
+            chunk: torch.Tensor (batch_size, chunk_size, feature_size)
+                新しく入力されたチャンク
+            history: torch.Tensor (batch_size, seq_len, feature_size)
+                チャンクのヒストリー
+        Returns:
+            (chunk, history): Tuple[torch.Tensor, torch.Tensor]
+
+            chunk: torch.Tensor (batch_size, chunk_size, feature_size)
+                出力の特徴量
+            history: torch.Tensor (batch_size, seq_len, feature_size)
+                新しくチャンクを加えたヒストリ
+        """
+        new_history = torch.cat([history, chunk], dim=1)
+        new_history = new_history[:, -self.history_length :, :]
+
+        batch_size = history.shape[0]
+        history_length = new_history.shape[1]
+        dummy_mask = torch.ones((batch_size, history_length), dtype=torch.bool).to(
+            chunk.device
+        )
+
+        residual = chunk
+        chunk = self.norm1(chunk)
+        chunk = residual + self.attention(chunk, new_history, new_history, dummy_mask)
+
+        residual = chunk
+        chunk = self.norm2(chunk)
+        chunk = residual + self.feed_forward(chunk)
+
+        return chunk, new_history
+
+    def forward_train(self, xs, mask) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Arguments:
             xs: torch.Tensor (batch_size, seq_len, feature_size)
@@ -62,12 +95,12 @@ class EncoderLayer(nn.Module):
         # self attentionの計算
         residual = xs
         xs = self.norm1(xs)
-        xs = residual + self.dropout1(self.attention(xs, xs, xs, mask))
+        xs = residual + self.attention(xs, xs, xs, mask)
 
         # feed forwardの計算
         residual = xs
         xs = self.norm2(xs)
-        xs = residual + self.dropout2(self.feed_forward(xs))
+        xs = residual + self.feed_forward(xs)
 
         # assert xs.size() == (batch_size, seq_length, self.out_feature_dim)
         # assert mask.size() == (batch_size, seq_length, seq_length)
@@ -81,7 +114,9 @@ class Encoder(nn.Module):
     self attentionとfeed forwardを繰り返す構造となっている。
     """
 
-    def __init__(self, input_feature_size: int, decoder_feature_size: int):
+    def __init__(
+        self, input_feature_size: int, decoder_feature_size: int, history_length: int
+    ):
         """
         Arguments:
             input_feature_size: int
@@ -91,20 +126,22 @@ class Encoder(nn.Module):
         """
         super(Encoder, self).__init__()
         self.out_feature_dim = decoder_feature_size
+        self.history_length = history_length
 
         # 入力のembedding
-        self.embed = nn.Sequential(
+        self.chunk_embed = nn.Sequential(
             nn.Linear(input_feature_size, 512),
             nn.LayerNorm(512),
-            nn.Dropout(0.1),
             nn.ReLU(),
-            PositionalEncoding(512),
+            ChunkPositionalEncoding(512, 6),
         )
 
         # # Encoderのレイヤー
         encoder_modules = []
-        for _ in range(8):
-            encoder_modules.append(EncoderLayer(feature_size=512))
+        for _ in range(6):
+            encoder_modules.append(
+                EncoderLayer(feature_size=512, history_length=history_length)
+            )
         self.encoders = nn.ModuleList(encoder_modules)
 
         # feed forward
@@ -113,6 +150,85 @@ class Encoder(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(
+        self,
+        chunk: torch.Tensor,
+        history_layer_1: torch.Tensor,
+        history_layer_2: torch.Tensor,
+        history_layer_3: torch.Tensor,
+        history_layer_4: torch.Tensor,
+        history_layer_5: torch.Tensor,
+        history_layer_6: torch.Tensor,
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+    ]:
+        """
+        Arguments:
+            chunk: torch.Tensor (batch_size, chunk_size, input_feature_size)
+                新しく入力されたチャンク
+            history_layer_1: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー1のチャンクのヒストリー
+            history_layer_2: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー2のチャンクのヒストリー
+            history_layer_3: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー3のチャンクのヒストリー
+            history_layer_4: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー4のチャンクのヒストリー
+            history_layer_5: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー5のチャンクのヒストリー
+            history_layer_6: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー6のチャンクのヒストリー
+        Returns:
+            (chunk, history_layer_1, history_layer_2, history_layer_3, history_layer_4, history_layer_5, history_layer_6): Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+
+            chunk: torch.Tensor (batch_size, chunk_size, decoder_feature_size)
+                出力の特徴量
+            history_layer_1: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー1のチャンクのヒストリー
+            history_layer_2: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー2のチャンクのヒストリー
+            history_layer_3: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー3のチャンクのヒストリー
+            history_layer_4: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー4のチャンクのヒストリー
+            history_layer_5: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー5のチャンクのヒストリー
+            history_layer_6: torch.Tensor (batch_size, seq_len, 512)
+                レイヤー6のチャンクのヒストリー
+        """
+        # チャンクのembedding
+        chunk = self.chunk_embed(chunk)
+
+        # レイヤーごとの処理
+        chunk, history_layer_1 = self.encoders[0](chunk, history_layer_1)
+        chunk, history_layer_2 = self.encoders[1](chunk, history_layer_2)
+        chunk, history_layer_3 = self.encoders[2](chunk, history_layer_3)
+        chunk, history_layer_4 = self.encoders[3](chunk, history_layer_4)
+        chunk, history_layer_5 = self.encoders[4](chunk, history_layer_5)
+        chunk, history_layer_6 = self.encoders[5](chunk, history_layer_6)
+
+        # Normalization
+        chunk = self.after_norm(self.fc(chunk))
+
+        # Sigmoid
+        chunk = self.sigmoid(chunk)
+
+        return (
+            chunk,
+            history_layer_1,
+            history_layer_2,
+            history_layer_3,
+            history_layer_4,
+            history_layer_5,
+            history_layer_6,
+        )
+
+    def forward_train(
         self, input_features: torch.Tensor, input_lengths: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -144,11 +260,11 @@ class Encoder(nn.Module):
         mask = mask_len * mask_chunk
 
         # 入力のembedding
-        xs = self.embed(input_features)
+        xs = self.chunk_embed(input_features)
 
         # Encoderのレイヤーを繰り返す
         for encoder_layer in self.encoders:
-            xs, mask = encoder_layer(xs, mask)
+            xs, mask = encoder_layer.forward_train(xs, mask)
 
         # Normalization
         xs = self.after_norm(self.fc(xs))
