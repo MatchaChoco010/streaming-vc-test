@@ -2,6 +2,7 @@ import os
 import pathlib
 import itertools
 from datetime import datetime
+import random
 
 import datasets
 import torch
@@ -13,8 +14,11 @@ from src.model.hifi_gan_generator import Generator
 from src.model.mel_gen import MelGenerate
 from src.model.spk_rm import SpeakerRemoval
 from src.model.discriminator import DiscriminatorMel, DiscriminatorFeat
+from src.module.log_melspectrogram import log_melspectrogram
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
+
+MAX_XS_LENGTH = 6 * 32
 
 
 class Trainer:
@@ -66,7 +70,7 @@ class Trainer:
         self.d_mel_lr = 0.00001
         self.mel_gen_lr = 0.001
         self.spk_rm_feat_loss_scale = 0.0
-        self.spk_rm_mel_loss_scale = 1.0
+        self.spk_rm_mel_loss_scale = 4.0
         self.spk_rm_text_loss_scale = 48.0
         self.mel_gen_loss_scale = 64.0
 
@@ -205,23 +209,33 @@ class Trainer:
 
         mel_errors = []
 
+        def get_random_range(xs):
+            start = random.randint(0, max(0, xs.shape[1] - MAX_XS_LENGTH))
+            clip_xs = xs[:, start : start + MAX_XS_LENGTH]
+            if clip_xs.shape[1] < MAX_XS_LENGTH:
+                clip_xs = F.pad(
+                    clip_xs, (0, 0, 0, MAX_XS_LENGTH - clip_xs.shape[1]), "constant"
+                ).to(self.device)
+            return clip_xs
+
         while self.step < self.max_step:
             x_many = next(f_data_loader).to(self.device).squeeze(1)
-            x_target, target_mel = next(r_data_loader)
-            x_target = x_target.to(self.device).squeeze(1)
-            target_mel = target_mel.to(self.device)
+            x_target = next(r_data_loader).to(self.device).squeeze(1)
 
             if self.step % 4 == 0:
                 # d_featの学習
                 xs = self.asr_model.feature_extractor(x_many)
                 xs = self.asr_model.encoder(xs)
-                xs = self.spk_rm(xs)
+                clip_xs = get_random_range(xs)
+                xs = self.spk_rm(clip_xs)
                 xs = self.d_feat(xs)
                 d_feat_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
                 d_feat_many_losses.append(d_feat_many_loss.item())
 
                 xs = self.asr_model.feature_extractor(x_target)
                 xs = self.asr_model.encoder(xs)
+                clip_xs = get_random_range(xs)
+                xs = self.spk_rm(clip_xs)
                 xs = self.d_feat(xs)
                 d_feat_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
                 d_feat_target_losses.append(d_feat_target_loss.item())
@@ -237,7 +251,8 @@ class Trainer:
                 # d_melの学習
                 xs = self.asr_model.feature_extractor(x_many)
                 xs = self.asr_model.encoder(xs)
-                xs = self.spk_rm(xs)
+                clip_xs = get_random_range(xs)
+                xs = self.spk_rm(clip_xs)
                 xs = self.mel_gen(xs)
                 xs = self.d_mel(xs)
                 d_mel_many_loss = F.binary_cross_entropy(xs, torch.zeros_like(xs))
@@ -245,7 +260,8 @@ class Trainer:
 
                 xs = self.asr_model.feature_extractor(x_target)
                 xs = self.asr_model.encoder(xs)
-                xs = self.spk_rm(xs)
+                clip_xs = get_random_range(xs)
+                xs = self.spk_rm(clip_xs)
                 xs = self.mel_gen(xs)
                 xs = self.d_mel(xs)
                 d_mel_target_loss = F.binary_cross_entropy(xs, torch.ones_like(xs))
@@ -261,7 +277,8 @@ class Trainer:
             # spk_rmの学習
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
-            xs = self.spk_rm(xs)
+            clip_xs = get_random_range(xs)
+            xs = self.spk_rm(clip_xs)
             xs = self.d_feat(xs)
             spk_rm_feat_loss = (
                 F.binary_cross_entropy(xs, torch.ones_like(xs))
@@ -271,7 +288,8 @@ class Trainer:
 
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
-            xs = self.spk_rm(xs)
+            clip_xs = get_random_range(xs)
+            xs = self.spk_rm(clip_xs)
             xs = self.mel_gen(xs)
             xs = self.d_mel(xs)
             spk_rm_mel_loss = (
@@ -282,8 +300,9 @@ class Trainer:
 
             xs = self.asr_model.feature_extractor(x_many)
             xs = self.asr_model.encoder(xs)
-            text_wo_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
-            xs = self.spk_rm(xs)
+            clip_xs = get_random_range(xs)
+            text_wo_spk_rm = F.log_softmax(self.asr_model.ctc_layers(clip_xs), dim=-1)
+            xs = self.spk_rm(clip_xs)
             text_w_spk_rm = F.log_softmax(self.asr_model.ctc_layers(xs), dim=-1)
             spk_rm_text_loss = (
                 F.mse_loss(text_wo_spk_rm, text_w_spk_rm) * self.spk_rm_text_loss_scale
@@ -298,13 +317,33 @@ class Trainer:
             self.optimizer_spk_rm.step()
 
             # mel_genの学習
-            xs = self.asr_model.feature_extractor(x_target)
+            start = random.randint(0, max(0, x_target.shape[1] - MAX_XS_LENGTH * 256))
+            clip_x_target = x_target[:, start : start + MAX_XS_LENGTH * 256]
+            if clip_x_target.shape[1] < MAX_XS_LENGTH * 256:
+                clip_x_target = F.pad(
+                    clip_x_target,
+                    (0, MAX_XS_LENGTH * 256 - clip_x_target.shape[1]),
+                    "constant",
+                )
+
+            clip_x_target_mel = torchaudio.transforms.MelSpectrogram(
+                n_fft=1024,
+                n_mels=80,
+                sample_rate=24000,
+                hop_length=256,
+                win_length=1024,
+            ).to(self.device)(clip_x_target)
+            clip_x_target_mel = log_melspectrogram(clip_x_target_mel).squeeze(0)[
+                :, :, :MAX_XS_LENGTH
+            ]
+
+            xs = self.asr_model.feature_extractor(clip_x_target)
             xs = self.asr_model.encoder(xs)
             xs = self.spk_rm(xs)
             target_mel_hat = self.mel_gen(xs)
 
             mel_gen_loss = (
-                F.mse_loss(target_mel_hat, target_mel) * self.mel_gen_loss_scale
+                F.mse_loss(target_mel_hat, clip_x_target_mel) * self.mel_gen_loss_scale
             )
             mel_gen_losses.append(mel_gen_loss.item())
 
@@ -313,7 +352,7 @@ class Trainer:
             self.optimizer_mel_gen.step()
 
             ## mel error
-            mel_error = F.l1_loss(target_mel, target_mel_hat).item()
+            mel_error = F.l1_loss(clip_x_target_mel, target_mel_hat).item()
             mel_errors.append(mel_error)
 
             # ロギング
@@ -410,7 +449,10 @@ class Trainer:
                 if self.step % 100 == 0:
                     # 適当にmelをremapして画像として保存
                     self.log.add_image(
-                        "mel", (target_mel[0] + 15) / 30, self.step, dataformats="HW"
+                        "mel",
+                        (clip_x_target_mel[0] + 15) / 30,
+                        self.step,
+                        dataformats="HW",
                     )
                     self.log.add_image(
                         "mel_hat",
@@ -425,6 +467,7 @@ class Trainer:
             # バリデーションの実行
             if self.step % self.valid_step == 0:
                 self.validate()
+                torch.cuda.empty_cache()
 
             # End of step
             self.step += 1
@@ -445,7 +488,9 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            history_size = 6 * 256
+            # asr_history_size = 6 * 256
+            asr_history_size = 6 * 64
+            history_size = 6 * 32
             vocoder_history_size = 16
 
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
@@ -480,7 +525,7 @@ class Trainer:
                         feat_history = torch.cat([feat_history, feat], dim=1)
 
                     feature = self.spk_rm(
-                        self.asr_model.encoder(feat_history[:, -history_size:, :])
+                        self.asr_model.encoder(feat_history[:, -asr_history_size:, :])
                     )[:, -6:, :]
 
                     if feature_history is None:
