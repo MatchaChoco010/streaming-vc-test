@@ -70,7 +70,7 @@ class Trainer:
         self.d_mel_lr = 0.00001
         self.mel_gen_lr = 0.001
         self.spk_rm_feat_loss_scale = 8.0
-        self.spk_rm_mel_loss_scale = 0.0
+        self.spk_rm_mel_loss_scale = 4.0
         self.spk_rm_text_loss_scale = 48.0
         self.mel_gen_loss_scale = 64.0
 
@@ -488,8 +488,7 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            # asr_history_size = 6 * 256
-            asr_history_size = 6 * 64
+            asr_history_size = 6 * 256
             history_size = 6 * 32
             vocoder_history_size = 16
 
