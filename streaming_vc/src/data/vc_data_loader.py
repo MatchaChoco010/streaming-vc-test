@@ -49,8 +49,7 @@ class VCGanFakeDataset(IterableDataset):
     def __init__(self):
         self.dataset = load_dataset(  # type: ignore
             "reazon-research/reazonspeech",
-            # "medium",
-            "small",
+            "medium",
             num_proc=12,
         )["train"]
 
