@@ -65,10 +65,10 @@ class Trainer:
         self.log_dir = os.path.join(log_dir, self.exp_name)
         self.log = SummaryWriter(self.log_dir)
 
-        self.spk_rm_lr = 0.001
-        self.d_feat_lr = 0.00001
-        self.d_mel_lr = 0.00001
-        self.mel_gen_lr = 0.001
+        self.spk_rm_lr = 0.005
+        self.d_feat_lr = 0.00005
+        self.d_mel_lr = 0.00005
+        self.mel_gen_lr = 0.005
         self.spk_rm_feat_loss_scale = 8.0
         self.spk_rm_mel_loss_scale = 4.0
         self.spk_rm_text_loss_scale = 48.0
@@ -557,81 +557,7 @@ class Trainer:
                 )
 
                 self.log.add_audio(
-                    f"generated/audio/256/{filepath.name}", audio[-1], self.step, 24000
-                )
-
-        # テストデータで試す
-        with torch.no_grad():
-            asr_history_size = 6 * 4096
-            history_size = 6 * 64
-            vocoder_history_size = 16
-
-            for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
-                current_time = self.get_time()
-                print(
-                    f"[{current_time}][Step: {self.step}] Start convert test file : {filepath.name[:24]}"
-                )
-
-                y, sr = torchaudio.load(str(filepath))
-                y = torchaudio.transforms.Resample(sr, 24000)(y).squeeze(0)
-                y = y.to(device=self.device)
-
-                # historyを初期化
-                feat_history = torch.zeros((1, history_size, 240)).to(self.device)
-                feature_history = torch.zeros((1, history_size, 128)).to(self.device)
-                mel_hat_history = torch.zeros((1, 80, vocoder_history_size)).to(
-                    self.device
-                )
-
-                # melを64msずつずらしながら食わせることでstreamingで生成する
-                audio_items = []
-                for i in range(0, y.shape[0], 256 * 6):
-                    audio = y[i : i + 256 * 6]
-                    audio = F.pad(audio, (0, 256 * 6 - audio.shape[0]))
-                    audio = audio.unsqueeze(0)
-
-                    feat = self.asr_model.feature_extractor(audio)
-
-                    if feat_history is None:
-                        feat_history = feat
-                    else:
-                        feat_history = torch.cat([feat_history, feat], dim=1)
-
-                    feature = self.spk_rm(
-                        self.asr_model.encoder(feat_history[:, -asr_history_size:, :])
-                    )[:, -6:, :]
-
-                    if feature_history is None:
-                        feature_history = feature
-                    else:
-                        feature_history = torch.cat([feature_history, feature], dim=1)
-
-                    mel_hat = self.mel_gen(feature_history[:, -history_size:, :])[
-                        :, :, -6:
-                    ]
-
-                    if mel_hat_history is None:
-                        mel_hat_history = mel_hat
-                    else:
-                        mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
-
-                    audio_hat = self.vocoder(
-                        mel_hat_history[:, :, -vocoder_history_size:]
-                    )[:, :, -256 * 6 :]
-                    audio_items.append(audio_hat)
-
-                    # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
-                    torch.cuda.empty_cache()
-
-                audio = torch.cat(audio_items, dim=-1)
-
-                current_time = self.get_time()
-                print(
-                    f"[{current_time}][Step: {self.step}] Finish convert test file: {filepath.name[:24]}"
-                )
-
-                self.log.add_audio(
-                    f"generated/audio/4096/{filepath.name}", audio[-1], self.step, 24000
+                    f"generated/audio/{filepath.name}", audio[-1], self.step, 24000
                 )
 
         # save ckpt
