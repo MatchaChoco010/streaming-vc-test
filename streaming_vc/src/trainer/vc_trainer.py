@@ -65,10 +65,10 @@ class Trainer:
         self.log_dir = os.path.join(log_dir, self.exp_name)
         self.log = SummaryWriter(self.log_dir)
 
-        self.spk_rm_lr = 0.005
-        self.d_feat_lr = 0.00005
-        self.d_mel_lr = 0.00005
-        self.mel_gen_lr = 0.005
+        self.spk_rm_lr = 0.002
+        self.d_feat_lr = 0.00002
+        self.d_mel_lr = 0.00002
+        self.mel_gen_lr = 0.002
         self.spk_rm_feat_loss_scale = 8.0
         self.spk_rm_mel_loss_scale = 4.0
         self.spk_rm_text_loss_scale = 48.0
