@@ -398,7 +398,7 @@ class Trainer:
                 y = y.to(device=self.device)
 
                 # historyを初期化
-                feat_history = torch.zeros((1, 80, asr_history_size)).to(self.device)
+                feat_history = torch.zeros((1, asr_history_size, 240)).to(self.device)
                 feature_history = torch.zeros((1, history_size, 128)).to(self.device)
                 mel_hat_history = torch.zeros((1, 80, vocoder_history_size)).to(
                     self.device
@@ -441,10 +441,10 @@ class Trainer:
                     #     asr_encoder_history_layer_6,
                     # )
 
-                    feat_history = torch.cat([feat_history, feat], dim=2)
+                    feat_history = torch.cat([feat_history, feat], dim=1)
 
                     feature, _ = self.asr_model.encoder.forward_train(
-                        feat_history[:, :, -asr_history_size:],
+                        feat_history[:, -asr_history_size:, :],
                         torch.tensor([asr_history_size]),
                     )
 
