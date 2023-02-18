@@ -441,24 +441,26 @@ class Trainer:
                     #     asr_encoder_history_layer_6,
                     # )
 
-                    feat_history = torch.cat([feat_history, feat], dim=1)
+                    feat_history = torch.cat([feat_history, feat], dim=1)[
+                        :, -asr_history_size:, :
+                    ]
 
                     feature, _ = self.asr_model.encoder.forward_train(
-                        feat_history[:, -asr_history_size:, :],
+                        feat_history,
                         torch.tensor([asr_history_size]),
                     )
 
-                    feature_history = torch.cat([feature_history, feature], dim=1)
-
-                    mel_hat = self.mel_gen(feature_history[:, -history_size:, :])[
-                        :, :, -6:
+                    feature_history = torch.cat([feature_history, feature], dim=1)[
+                        :, -history_size:, :
                     ]
 
-                    mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
+                    mel_hat = self.mel_gen(feature_history)[:, :, -6:]
 
-                    audio_hat = self.vocoder(
-                        mel_hat_history[:, :, -vocoder_history_size:]
-                    )[:, :, -256 * 6 :]
+                    mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)[
+                        :, :, -vocoder_history_size:
+                    ]
+
+                    audio_hat = self.vocoder(mel_hat_history)[:, :, -256 * 6 :]
                     audio_items.append(audio_hat)
 
                     # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
