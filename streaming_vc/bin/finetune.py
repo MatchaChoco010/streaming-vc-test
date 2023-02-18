@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from src.trainer.finetune import Finetune
 
 # default parameters
-batch_size: int = 4
+batch_size: int = 1
 max_step: int = 10000001
 progress_step: int = 10
 valid_step: int = 500

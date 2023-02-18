@@ -65,13 +65,13 @@ class Trainer:
         self.log_dir = os.path.join(log_dir, self.exp_name)
         self.log = SummaryWriter(self.log_dir)
 
-        self.spk_rm_lr = 0.0004
+        self.spk_rm_lr = 0.0005
         self.d_feat_lr = 0.000001
         self.d_mel_lr = 0.000001
         self.mel_gen_lr = 0.0001
         self.spk_rm_feat_loss_scale = 8.0
         self.spk_rm_mel_loss_scale = 4.0
-        self.spk_rm_text_loss_scale = 48.0
+        self.spk_rm_text_loss_scale = 72.0
         self.mel_gen_loss_scale = 64.0
 
         self.log.add_text(
@@ -503,7 +503,7 @@ class Trainer:
                 y = y.to(device=self.device)
 
                 # historyを初期化
-                feat_history = torch.zeros((1, history_size, 240)).to(self.device)
+                feat_history = torch.zeros((1, asr_history_size, 240)).to(self.device)
                 feature_history = torch.zeros((1, history_size, 128)).to(self.device)
                 mel_hat_history = torch.zeros((1, 80, vocoder_history_size)).to(
                     self.device
@@ -518,28 +518,19 @@ class Trainer:
 
                     feat = self.asr_model.feature_extractor(audio)
 
-                    if feat_history is None:
-                        feat_history = feat
-                    else:
-                        feat_history = torch.cat([feat_history, feat], dim=1)
+                    feat_history = torch.cat([feat_history, feat], dim=1)
 
                     feature = self.spk_rm(
                         self.asr_model.encoder(feat_history[:, -asr_history_size:, :])
                     )[:, -6:, :]
 
-                    if feature_history is None:
-                        feature_history = feature
-                    else:
-                        feature_history = torch.cat([feature_history, feature], dim=1)
+                    feature_history = torch.cat([feature_history, feature], dim=1)
 
                     mel_hat = self.mel_gen(feature_history[:, -history_size:, :])[
                         :, :, -6:
                     ]
 
-                    if mel_hat_history is None:
-                        mel_hat_history = mel_hat
-                    else:
-                        mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
+                    mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
 
                     audio_hat = self.vocoder(
                         mel_hat_history[:, :, -vocoder_history_size:]

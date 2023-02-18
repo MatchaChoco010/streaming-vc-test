@@ -2,6 +2,7 @@ import itertools
 import os
 import pathlib
 from datetime import datetime
+import random
 
 import datasets
 import torch
@@ -19,7 +20,7 @@ from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
-SEGMENT_SIZE = 6 * 256 * 24
+SEGMENT_SIZE = 6 * 256 * 64
 
 
 class Finetune:
@@ -93,12 +94,12 @@ class Finetune:
 
         self.optimizer_g = optim.AdamW(
             self.generator.parameters(),
-            lr=0.00002,
+            lr=0.00001,
             betas=(0.8, 0.99),
         )
         self.optimizer_d = optim.AdamW(
             itertools.chain(self.mpd.parameters(), self.msd.parameters()),
-            lr=0.00002,
+            lr=0.00001,
             betas=(0.8, 0.99),
         )
 
@@ -177,9 +178,26 @@ class Finetune:
         while self.step < self.max_step:
             for audio, mel in self.train_loader:
                 audio = torch.autograd.Variable(audio.to(device=self.device))
-                mel = torch.autograd.Variable(mel.to(device=self.device))
 
-                feat = self.asr_model.feature_extractor(audio.squeeze(1))
+                start = random.randint(0, max(0, audio.shape[1] - SEGMENT_SIZE * 256))
+                clip_audio = audio[:, start : start + SEGMENT_SIZE * 256]
+                if clip_audio.shape[1] < SEGMENT_SIZE * 256:
+                    clip_audio = F.pad(
+                        clip_audio,
+                        (0, SEGMENT_SIZE * 256 - clip_audio.shape[1]),
+                        "constant",
+                    )
+
+                clip_mel = torchaudio.transforms.MelSpectrogram(
+                    n_fft=1024,
+                    n_mels=80,
+                    sample_rate=24000,
+                    hop_length=256,
+                    win_length=1024,
+                ).to(self.device)(clip_audio)
+                clip_mel = log_melspectrogram(clip_mel).squeeze(0)[:, :, :SEGMENT_SIZE]
+
+                feat = self.asr_model.feature_extractor(clip_audio.squeeze(1))
                 feature = self.asr_model.encoder(feat)
                 feature = self.spk_rm(feature)
 
@@ -201,13 +219,17 @@ class Finetune:
                 self.optimizer_d.zero_grad()
 
                 # MPD
-                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(audio, audio_g_hat.detach())
+                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(
+                    clip_audio, audio_g_hat.detach()
+                )
                 loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(
                     y_df_hat_r, y_df_hat_g
                 )
 
                 # MSD
-                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(audio, audio_g_hat.detach())
+                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(
+                    clip_audio, audio_g_hat.detach()
+                )
                 loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
                     y_ds_hat_r, y_ds_hat_g
                 )
@@ -221,13 +243,13 @@ class Finetune:
                 self.optimizer_g.zero_grad()
 
                 # L1 Mel-Spectrogram Loss
-                loss_mel = F.l1_loss(mel_g_hat, mel) * 45
+                loss_mel = F.l1_loss(mel_g_hat, clip_mel) * 45
 
                 y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(
-                    audio, audio_g_hat
+                    clip_audio, audio_g_hat
                 )
                 y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(
-                    audio, audio_g_hat
+                    clip_audio, audio_g_hat
                 )
                 loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
                 loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
@@ -270,7 +292,7 @@ class Finetune:
                     if self.step % 100 == 0:
                         # 適当にmelをremapして画像として保存
                         self.log.add_image(
-                            "mel", (mel[0] + 15) / 30, self.step, dataformats="HW"
+                            "mel", (clip_mel[0] + 15) / 30, self.step, dataformats="HW"
                         )
                         self.log.add_image(
                             "mel_hat",
@@ -310,6 +332,7 @@ class Finetune:
 
         # テストデータで試す
         with torch.no_grad():
+            asr_history_size = 6 * 256
             history_size = 6 * 24
             vocoder_history_size = 16
 
@@ -323,10 +346,14 @@ class Finetune:
                 y = torchaudio.transforms.Resample(sr, 24000)(y).squeeze(0)
                 y = y.to(device=self.device)
 
+                # historyを初期化
+                feat_history = torch.zeros((1, asr_history_size, 240)).to(self.device)
+                feature_history = torch.zeros((1, history_size, 128)).to(self.device)
+                mel_hat_history = torch.zeros((1, 80, vocoder_history_size)).to(
+                    self.device
+                )
+
                 # melを64msずつずらしながら食わせることでstreamingで生成する
-                feat_history: torch.Tensor | None = None
-                mel_history: torch.Tensor | None = None
-                mel_hat_history: torch.Tensor | None = None
                 audio_items = []
                 for i in range(0, y.shape[0], 256 * 6):
                     audio = y[i : i + 256 * 6]
@@ -335,28 +362,19 @@ class Finetune:
 
                     feat = self.asr_model.feature_extractor(audio)
 
-                    if feat_history is None:
-                        feat_history = feat
-                    else:
-                        feat_history = torch.cat([feat_history, feat], dim=1)
+                    feat_history = torch.cat([feat_history, feat], dim=1)
 
-                    feature = self.asr_model.encoder(
-                        feat_history[:, -history_size:, :]
+                    feature = self.spk_rm(
+                        self.asr_model.encoder(feat_history[:, -asr_history_size:, :])
                     )[:, -6:, :]
 
-                    if mel_history is None:
-                        mel_history = feature
-                    else:
-                        mel_history = torch.cat([mel_history, feature], dim=1)
+                    feature_history = torch.cat([feature_history, feature], dim=1)
 
-                    mel_hat = self.mel_gen(
-                        self.spk_rm(mel_history[:, -history_size:, :])
-                    )[:, :, -6:]
+                    mel_hat = self.mel_gen(feature_history[:, -history_size:, :])[
+                        :, :, -6:
+                    ]
 
-                    if mel_hat_history is None:
-                        mel_hat_history = mel_hat
-                    else:
-                        mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
+                    mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)
 
                     audio_hat = self.generator(
                         mel_hat_history[:, :, -vocoder_history_size:]

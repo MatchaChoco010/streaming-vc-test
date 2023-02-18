@@ -32,6 +32,7 @@ def extract(ckpt_path: str):
 
     feature_extractor = asr_model.feature_extractor
     feature_extractor.melspec.set_mode("DFT", "store")
+    feature_extractor.eval()
 
     encoder = asr_model.encoder
 
@@ -44,7 +45,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=15,
+        opset_version=11,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batchsize", 1: "seq_len"},
@@ -59,7 +60,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=15,
+        opset_version=11,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batch_size", 1: "seq_len"},
@@ -74,7 +75,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=15,
+        opset_version=11,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batch_size", 1: "seq_len"},
@@ -89,7 +90,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=15,
+        opset_version=11,
         dynamic_axes={
             "input": {0: "batch_size", 1: "seq_len"},
             "output": {0: "batch_size", 2: "seq_len"},
@@ -104,7 +105,7 @@ def extract(ckpt_path: str):
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        opset_version=15,
+        opset_version=11,
         dynamic_axes={
             "input": {0: "batch_size", 2: "seq_len"},
             "output": {0: "batch_size", 1: "seq_len"},

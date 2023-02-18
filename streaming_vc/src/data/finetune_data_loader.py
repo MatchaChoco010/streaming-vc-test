@@ -9,7 +9,7 @@ from datasets import load_dataset
 from src.module.log_melspectrogram import log_melspectrogram
 from torch.utils.data import DataLoader, IterableDataset, Dataset
 
-SEGMENT_SIZE = 6 * 256 * 24
+SEGMENT_SIZE = 6 * 256 * 64
 
 
 class VCDataset(IterableDataset):
@@ -40,26 +40,8 @@ class VCDataset(IterableDataset):
         """
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
+            yield audio
 
-            audio_start = random.randint(0, SEGMENT_SIZE)
-            for start in range(audio_start, audio.shape[1], SEGMENT_SIZE):
-                clip_audio = audio[:, start : start + SEGMENT_SIZE]
-
-                if clip_audio.shape[1] < SEGMENT_SIZE:
-                    clip_audio = F.pad(
-                        clip_audio, (0, SEGMENT_SIZE - clip_audio.shape[1]), "constant"
-                    )
-
-                mel = torchaudio.transforms.MelSpectrogram(
-                    n_fft=1024,
-                    n_mels=80,
-                    sample_rate=24000,
-                    hop_length=256,
-                    win_length=1024,
-                )(clip_audio)[:, :, : SEGMENT_SIZE // 256]
-                mel = log_melspectrogram(mel).squeeze(0)
-
-                yield clip_audio, mel
 
 class ShuffleDataset(torch.utils.data.IterableDataset):
     def __init__(self, dataset, buffer_size):
@@ -91,6 +73,23 @@ class ShuffleDataset(torch.utils.data.IterableDataset):
             pass
 
 
+def collect_audio_batch(batch):
+    audio_len = []
+    for b in batch:
+        audio_len.append(b.shape[1])
+
+    max_audio_len = max(audio_len)
+    audio_items = []
+    for audio in batch:
+        audio = audio.squeeze(0)
+        audio_items.append(
+            F.pad(audio, (0, max_audio_len - audio.shape[0]), "constant", 0)
+        )
+    audio = torch.stack(audio_items, dim=0)
+
+    return audio
+
+
 def load_data(
     dataset_dir: str,
     batch_size: int,
@@ -115,6 +114,7 @@ def load_data(
         batch_size=batch_size,
         drop_last=False,
         pin_memory=True,
+        collate_fn=collect_audio_batch,
     )
 
     return data_loader
