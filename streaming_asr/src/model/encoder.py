@@ -60,9 +60,9 @@ class EncoderLayer(nn.Module):
 
         batch_size = history.shape[0]
         history_length = new_history.shape[1]
-        dummy_mask = torch.ones((batch_size, history_length), dtype=torch.bool).to(
-            chunk.device
-        )
+        dummy_mask = torch.ones(
+            (batch_size, CHUNK_SIZE, history_length), dtype=torch.bool
+        ).to(chunk.device)
 
         residual = chunk
         chunk = self.norm1(chunk)
@@ -73,39 +73,6 @@ class EncoderLayer(nn.Module):
         chunk = residual + self.feed_forward(chunk)
 
         return chunk, new_history
-
-    def forward_train(self, xs, mask) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Arguments:
-            xs: torch.Tensor (batch_size, seq_len, feature_size)
-                入力の特徴量
-            mask: torch.Tensor (batch_size, seq_len)
-                Attentionのマスク
-        Returns:
-            (xs, mask): Tuple[torch.Tensor, torch.Tensor]
-
-            xs: torch.Tensor (batch_size, seq_len, feature_size)
-                出力の特徴量
-            mask: torch.Tensor (batch_size, 1, seq_len)
-                出力の長さのマスク
-        """
-        # batch_size = xs.shape[0]
-        # seq_length = xs.shape[1]
-
-        # self attentionの計算
-        residual = xs
-        xs = self.norm1(xs)
-        xs = residual + self.attention(xs, xs, xs, mask)
-
-        # feed forwardの計算
-        residual = xs
-        xs = self.norm2(xs)
-        xs = residual + self.feed_forward(xs)
-
-        # assert xs.size() == (batch_size, seq_length, self.out_feature_dim)
-        # assert mask.size() == (batch_size, seq_length, seq_length)
-
-        return xs, mask
 
 
 class Encoder(nn.Module):
@@ -136,7 +103,7 @@ class Encoder(nn.Module):
             ChunkPositionalEncoding(512, 6),
         )
 
-        # # Encoderのレイヤー
+        # Encoderのレイヤー
         encoder_modules = []
         for _ in range(6):
             encoder_modules.append(
@@ -227,54 +194,3 @@ class Encoder(nn.Module):
             history_layer_5,
             history_layer_6,
         )
-
-    def forward_train(
-        self, input_features: torch.Tensor, input_lengths: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Arguments:
-            input_features: Tensor (batch, seq_length, input_feature_size)
-                入力のオーディオ特徴量
-            input_lengths: Tensor (batch)
-                各バッチの入力の長さのTensor
-        Returns:
-            (tuple): (xs, output_lengths)
-
-            xs: Tensor (batch, seq_length, decoder_feature_size)
-                出力の特徴量
-            output_length: Tensor (batch)
-                出力の各バッチの出力の長さのTensor
-        """
-        # batch_size = input_features.shape[0]
-        seq_length = input_features.shape[1]
-
-        # 入力の長さのマスクを作る
-        mask_len = (
-            length_mask(input_lengths, seq_length)
-            .to(input_features.device)
-            .to(torch.bool)
-        )
-        # チャンクの先読みを封じるマスクを作る
-        mask_chunk = chunk_mask(seq_length, 6).to(input_features.device, torch.bool)
-        # マスクを掛け合わせる
-        mask = mask_len * mask_chunk
-
-        # 入力のembedding
-        xs = self.chunk_embed(input_features)
-
-        # Encoderのレイヤーを繰り返す
-        for encoder_layer in self.encoders:
-            xs, mask = encoder_layer.forward_train(xs, mask)
-
-        # Normalization
-        xs = self.after_norm(self.fc(xs))
-
-        # Sigmoid
-        xs = self.sigmoid(xs)
-        # assert xs.shape == (batch_size, seq_length, self.out_feature_dim)
-
-        # 出力の長さの計算
-        output_lengths = mask_len.squeeze(1).sum(dim=1)
-        # assert output_lengths.shape == (batch_size,)
-
-        return xs, output_lengths

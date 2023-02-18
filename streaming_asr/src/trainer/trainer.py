@@ -375,6 +375,7 @@ class Trainer:
                 ctc_output_log_softmax = F.log_softmax(ctc_output, dim=-1).transpose(
                     0, 1
                 )
+
                 # calc loss
                 ctc_loss = self.ctc_loss(
                     ctc_output_log_softmax, text.argmax(dim=-1), encode_len, text_len

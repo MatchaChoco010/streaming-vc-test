@@ -75,21 +75,17 @@ class FeatureExtractor(nn.Module):
         self.delta = Delta()
 
     def forward(
-        self, xs: torch.Tensor, x_lengths: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self, xs: torch.Tensor
+    ) -> torch.Tensor:
         """
         Arguments:
             xs: torch.Tensor (batch, max(audio_len))
                 オーディオの入力
-            x_lengths: torch.Tensor (batch)
-                各バッチごとのオーディオの長さ
         Returns:
             (ys, y_lengths): Tuple[torch.Tensor, torch.Tensor]
 
             ys: torch.Tensor (batch, seq_len, feature_size)
                 特徴量
-            y_lengths: torch.Tensor (batch)
-                各バッチごとの特徴量の長さ
         """
         ys = self.melspec(xs)[:, :, :-1]
 
@@ -101,12 +97,7 @@ class FeatureExtractor(nn.Module):
         # (batch, channel, feature_size, seq_len) -> (batch, feature_size, seq_len)
         ys = ys.reshape(ys.shape[0], -1, ys.shape[3])
 
-        feature_lengths = (x_lengths / 256).ceil().long()
-
-        mask = length_mask(feature_lengths, ys.shape[2]).to(ys.device)
-        ys = ys * mask
-
         # (batch, feature_size, seq_len) -> (batch, seq_len, feature_size)
         ys = ys.permute(0, 2, 1)
 
-        return ys, feature_lengths
+        return ys
