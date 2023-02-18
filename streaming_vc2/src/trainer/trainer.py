@@ -95,7 +95,7 @@ class Trainer:
         self.optim_source_g = optim.Adam(self.mel_rev.parameters(), lr=0.00005)
         self.optim_cycle = optim.Adam(
             list(self.mel_gen.parameters()) + list(self.mel_rev.parameters()),
-            lr=0.000002,
+            lr=0.00002,
         )
 
         if exp_name is not None:
