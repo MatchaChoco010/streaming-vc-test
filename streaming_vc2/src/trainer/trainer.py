@@ -118,6 +118,7 @@ class Trainer:
         self.optim_target_g.load_state_dict(ckpt["optim_target_g"])
         self.optim_source_g.load_state_dict(ckpt["optim_source_g"])
         self.optim_cycle.load_state_dict(ckpt["optim_cycle"])
+        self.step = ckpt["step"]
 
         print(f"Load checkpoint from {ckpt_path}")
 
@@ -397,18 +398,19 @@ class Trainer:
                 y = y.to(device=self.device)
 
                 # historyを初期化
+                feat_history = torch.zeros((1, 80, asr_history_size)).to(self.device)
                 feature_history = torch.zeros((1, history_size, 128)).to(self.device)
                 mel_hat_history = torch.zeros((1, 80, vocoder_history_size)).to(
                     self.device
                 )
 
                 # encoder layer history
-                asr_encoder_history_layer_1 = torch.zeros((1, 6, 512)).to(self.device)
-                asr_encoder_history_layer_2 = torch.zeros((1, 6, 512)).to(self.device)
-                asr_encoder_history_layer_3 = torch.zeros((1, 6, 512)).to(self.device)
-                asr_encoder_history_layer_4 = torch.zeros((1, 6, 512)).to(self.device)
-                asr_encoder_history_layer_5 = torch.zeros((1, 6, 512)).to(self.device)
-                asr_encoder_history_layer_6 = torch.zeros((1, 6, 512)).to(self.device)
+                # asr_encoder_history_layer_1 = torch.zeros((1, 6, 512)).to(self.device)
+                # asr_encoder_history_layer_2 = torch.zeros((1, 6, 512)).to(self.device)
+                # asr_encoder_history_layer_3 = torch.zeros((1, 6, 512)).to(self.device)
+                # asr_encoder_history_layer_4 = torch.zeros((1, 6, 512)).to(self.device)
+                # asr_encoder_history_layer_5 = torch.zeros((1, 6, 512)).to(self.device)
+                # asr_encoder_history_layer_6 = torch.zeros((1, 6, 512)).to(self.device)
 
                 # melを64msずつずらしながら食わせることでstreamingで生成する
                 audio_items = []
@@ -421,22 +423,29 @@ class Trainer:
                         audio, torch.tensor([256 * 6])
                     )
 
-                    (
-                        feature,
-                        asr_encoder_history_layer_1,
-                        asr_encoder_history_layer_2,
-                        asr_encoder_history_layer_3,
-                        asr_encoder_history_layer_4,
-                        asr_encoder_history_layer_5,
-                        asr_encoder_history_layer_6,
-                    ) = self.asr_model.encoder(
-                        feat,
-                        asr_encoder_history_layer_1,
-                        asr_encoder_history_layer_2,
-                        asr_encoder_history_layer_3,
-                        asr_encoder_history_layer_4,
-                        asr_encoder_history_layer_5,
-                        asr_encoder_history_layer_6,
+                    # (
+                    #     feature,
+                    #     asr_encoder_history_layer_1,
+                    #     asr_encoder_history_layer_2,
+                    #     asr_encoder_history_layer_3,
+                    #     asr_encoder_history_layer_4,
+                    #     asr_encoder_history_layer_5,
+                    #     asr_encoder_history_layer_6,
+                    # ) = self.asr_model.encoder(
+                    #     feat,
+                    #     asr_encoder_history_layer_1,
+                    #     asr_encoder_history_layer_2,
+                    #     asr_encoder_history_layer_3,
+                    #     asr_encoder_history_layer_4,
+                    #     asr_encoder_history_layer_5,
+                    #     asr_encoder_history_layer_6,
+                    # )
+
+                    feat_history = torch.cat([feat_history, feat], dim=2)
+
+                    feature, _ = self.asr_model.encoder.forward_train(
+                        feat_history[:, :, -asr_history_size:],
+                        torch.tensor([asr_history_size]),
                     )
 
                     feature_history = torch.cat([feature_history, feature], dim=1)
