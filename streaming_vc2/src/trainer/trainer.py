@@ -157,8 +157,8 @@ class Trainer:
         """
         トレーニングのメソッド
         """
-        print(f"Experiment name: {self.exp_name}\n")
         print("\n\n")
+        print(f"Experiment name: {self.exp_name}\n")
 
         def cycle(iterable):
             iterator = iter(iterable)

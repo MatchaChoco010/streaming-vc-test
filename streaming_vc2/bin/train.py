@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from src.trainer.trainer import Trainer
 
 # default parameters
-batch_size: int = 64
+batch_size: int = 16
 max_step: int = 10000001
 progress_step: int = 10
 valid_step: int = 1000
