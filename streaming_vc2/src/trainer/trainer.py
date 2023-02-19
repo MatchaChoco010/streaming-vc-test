@@ -2,6 +2,7 @@ import os
 import math
 import sys
 import pathlib
+import gc
 from datetime import datetime
 from typing import Dict, List, Tuple
 
@@ -95,7 +96,7 @@ class Trainer:
         self.optim_source_g = optim.Adam(self.mel_rev.parameters(), lr=0.0002)
         self.optim_cycle = optim.Adam(
             list(self.mel_gen.parameters()) + list(self.mel_rev.parameters()),
-            lr=0.000001,
+            lr=0.000008,
         )
 
         if exp_name is not None:
@@ -361,6 +362,10 @@ class Trainer:
             # バリデーションの実行
             if self.step % self.valid_step == 0:
                 self.validate()
+                gc.collect()
+
+                # save ckpt
+                self.save_ckpt()
 
             # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
             torch.cuda.empty_cache()
@@ -476,9 +481,6 @@ class Trainer:
                 self.log.add_audio(
                     f"generated/audio/{filepath.name}", audio[-1], self.step, 24000
                 )
-
-        # save ckpt
-        self.save_ckpt()
 
         # Resume training
         self.asr_model.train()
