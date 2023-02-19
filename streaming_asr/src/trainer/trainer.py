@@ -73,7 +73,7 @@ class Trainer:
         self.seq_loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=False)
 
-        self.optimizer = optim.Adadelta(self.model.parameters())
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=0.0001)
 
         if exp_name is not None:
             self.load_ckpt()
