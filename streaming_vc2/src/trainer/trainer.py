@@ -92,7 +92,7 @@ class Trainer:
         self.optim_target_d = optim.Adam(self.d_target_mel.parameters(), lr=0.000001)
         self.optim_source_d = optim.Adam(self.d_source_feat.parameters(), lr=0.000001)
         self.optim_target_g = optim.Adam(self.mel_gen.parameters(), lr=0.00005)
-        self.optim_source_g = optim.Adam(self.mel_rev.parameters(), lr=0.00005)
+        self.optim_source_g = optim.Adam(self.mel_rev.parameters(), lr=0.0002)
         self.optim_cycle = optim.Adam(
             list(self.mel_gen.parameters()) + list(self.mel_rev.parameters()),
             lr=0.000001,
