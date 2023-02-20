@@ -11,9 +11,14 @@ import torchaudio
 from src.data.data_loader import load_data
 from src.model.asr_model import ASRModel
 from src.model.hifi_gan_generator import Generator
-from src.model.flow import FlowModel
+from src.model.posterior_encoder import PosteriorEncoder
+from src.model.residual_coupling_block import ResidualCouplingBlock
 from src.model.bottleneck import Bottleneck
+from src.model.multi_period_discriminator import MultiPeriodDiscriminator
+from src.model.multi_scale_discriminator import MultiScaleDiscriminator
 from src.model.random_resize_feature_extractor import FeatureExtractor
+from src.module.log_melspectrogram import log_melspectrogram
+from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -74,40 +79,55 @@ class Trainer:
 
         self.random_feature_extractor = FeatureExtractor(0.8, 1.2).to(self.device)
 
-        self.mel = torchaudio.transforms.MelSpectrogram(
+        self.spec = torchaudio.transforms.MelSpectrogram(
             n_fft=1024,
             n_mels=80,
             sample_rate=24000,
             hop_length=256,
             win_length=1024,
         ).to(self.device)
-        self.flow = FlowModel(4, 80).to(self.device)
-        self.bottleneck = Bottleneck().to(self.device)
 
-        self.vocoder = Generator().to(self.device).eval()
-        vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location=self.device)
-        self.vocoder.load_state_dict(vocoder_ckpt["generator"])
+        self.bottleneck = Bottleneck().to(self.device)
+        self.vocoder = Generator().to(self.device)
+        self.flow = ResidualCouplingBlock().to(self.device)
+        self.posterior_encoder = PosteriorEncoder().to(self.device)
+        self.mpd = MultiPeriodDiscriminator().to(self.device)
+        self.msd = MultiScaleDiscriminator().to(self.device)
 
         self.data_loader = load_data(voice_data_dir, batch_size)
 
-        self.optim = optim.AdamW(
-            list(self.flow.parameters()) + list(self.bottleneck.parameters()), lr=0.0001
+        self.optimizer_g = optim.AdamW(
+            list(self.bottleneck.parameters())
+            + list(self.vocoder.parameters())
+            + list(self.flow.parameters())
+            + list(self.posterior_encoder.parameters()),
+            lr=0.0002,
+            betas=(0.8, 0.99),
+            eps=1e-9,
+        )
+        self.optimizer_d = optim.AdamW(
+            list(self.mpd.parameters()) + list(self.msd.parameters()),
+            lr=0.0002,
+            betas=(0.8, 0.99),
+            eps=1e-9,
         )
 
         if exp_name is not None:
             self.load_ckpt()
 
     def load_ckpt(self):
-        """
-        ckptから復元する
-        """
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
 
         self.asr_model.encoder.load_state_dict(ckpt["asr_encoder"])
-        self.flow.load_state_dict(ckpt["flow"])
         self.bottleneck.load_state_dict(ckpt["bottleneck"])
-        self.optim.load_state_dict(ckpt["optim"])
+        self.vocoder.load_state_dict(ckpt["vocoder"])
+        self.flow.load_state_dict(ckpt["flow"])
+        self.posterior_encoder.load_state_dict(ckpt["posterior_encoder"])
+        self.mpd.load_state_dict(ckpt["mpd"])
+        self.msd.load_state_dict(ckpt["msd"])
+        self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
+        self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
         self.step = ckpt["step"]
 
         print(f"Load checkpoint from {ckpt_path}")
@@ -115,9 +135,14 @@ class Trainer:
     def save_ckpt(self):
         save_dict = {
             "asr_encoder": self.asr_model.encoder.state_dict(),
-            "flow": self.flow.state_dict(),
             "bottleneck": self.bottleneck.state_dict(),
-            "optim": self.optim.state_dict(),
+            "vocoder": self.vocoder.state_dict(),
+            "flow": self.flow.state_dict(),
+            "posterior_encoder": self.posterior_encoder.state_dict(),
+            "mpd": self.mpd.state_dict(),
+            "msd": self.msd.state_dict(),
+            "optimizer_d": self.optimizer_d.state_dict(),
+            "optimizer_g": self.optimizer_g.state_dict(),
             "step": self.step,
         }
 
@@ -145,7 +170,9 @@ class Trainer:
         print(f"Experiment name: {self.exp_name}")
         print("\n\n")
 
-        kl_losses = []
+        d_losses = []
+        g_losses = []
+        mel_errors = []
 
         def kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2):
             kl = log_sigma_1 - log_sigma_2 - 0.5
@@ -158,33 +185,88 @@ class Trainer:
                 audio = audio.to(self.device)
                 audio = audio.squeeze(1)
 
-                mel = self.mel(audio)
-                mel = mel[:, :, :MEL_LENGTH]
-                xs, log_det_jacobian = self.flow(mel)
-                mu_1, log_sigma_1 = xs.chunk(2, dim=1)
-
                 feat = self.random_feature_extractor(audio)
                 feature = self.asr_model.encoder(feat)
-                mu_2, log_sigma_2 = self.bottleneck(feature)
+                mu_1, log_sigma_1 = self.bottleneck(feature)
 
-                loss_kl = kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2)
-                kl_losses.append(loss_kl.item())
+                spec = self.spec(audio)
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                z_p = self.flow(z)
 
-                self.optim.zero_grad()
-                loss_kl.backward()
-                self.optim.step()
+                audio_hat = self.vocoder(z)
+
+                mel = log_melspectrogram(self.spec(audio))
+                mel_hat = log_melspectrogram(self.spec(audio_hat))
+
+                # discrimator step
+                self.optimizer_d.zero_grad()
+
+                ## MPD
+                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(audio, audio_hat.detach())
+                loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(
+                    y_df_hat_r, y_df_hat_g
+                )
+
+                ## MSD
+                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(audio, audio_hat.detach())
+                loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
+                    y_ds_hat_r, y_ds_hat_g
+                )
+
+                loss_disc_all = loss_disc_s + loss_disc_f
+
+                loss_disc_all.backward()
+                self.optimizer_d.step()
+
+                # generator step
+                self.optimizer_g.zero_grad()
+
+                ## L1 Mel-Spectrogram Loss
+                loss_mel = F.l1_loss(mel, mel_hat) * 45
+
+                ## GAN Loss
+                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(audio, audio_hat)
+                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(audio, audio_hat)
+                loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
+                loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
+                loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
+                loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
+
+                ## KL Loss
+                loss_kl = kl_loss(z_p, log_sigma_2, mu_1, log_sigma_1)
+
+                loss_gen_all = (
+                    loss_gen_s + loss_gen_f + loss_fm_s + loss_fm_f + loss_mel + loss_kl
+                )
+
+                loss_gen_all.backward()
+                self.optimizer_g.step()
+
+                d_losses.append(loss_disc_all.item())
+                g_losses.append(loss_gen_all.item())
 
                 # ロギング
                 if self.step % self.progress_step == 0:
-                    # calculate mean of losses and cers in progress steps
-                    avg_kl_loss = sum(kl_losses) / len(kl_losses)
                     ## console
                     current_time = self.get_time()
-                    print(f"[{current_time}][Step: {self.step}] loss_kl: {avg_kl_loss}")
+                    d_loss = sum(d_losses) / len(d_losses)
+                    g_loss = sum(g_losses) / len(g_losses)
+                    print(
+                        f"[{current_time}][Step: {self.step}] d_loss: {d_loss}, g_loss: {g_loss}",
+                    )
+                    ## mel error
+                    mel_error = F.l1_loss(mel, mel_hat).item()
+                    mel_errors.append(mel_error)
                     ## tensorboard
-                    self.log.add_scalar("train/loss_kl", avg_kl_loss, self.step)
+                    self.log.add_scalar("train/loss/d", d_loss, self.step)
+                    self.log.add_scalar("train/loss/g", g_loss, self.step)
+                    self.log.add_scalar(
+                        "train/mel_error", sum(mel_errors) / len(mel_errors), self.step
+                    )
                     # reset losses
-                    kl_losses = []
+                    d_losses = []
+                    g_losses = []
+                    mel_errors = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
                 torch.cuda.empty_cache()
@@ -204,8 +286,9 @@ class Trainer:
         self.log.close()
 
     def validate(self):
-        self.flow.eval()
         self.bottleneck.eval()
+        self.flow.eval()
+        self.vocoder.eval()
 
         if self.step == 0:
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
@@ -230,9 +313,9 @@ class Trainer:
                 y = y.to(device=self.device)
 
                 # historyを初期化
-                feat_history = torch.zeros((1, history_size, 240)).to(self.device)
-                feature_history = torch.zeros((1, history_size, 128)).to(self.device)
-                mel_hat_history = torch.zeros((1, 80, vocoder_history_size)).to(
+                feat_1_history = torch.zeros((1, history_size, 240)).to(self.device)
+                feat_2_history = torch.zeros((1, history_size, 128)).to(self.device)
+                feat_3_history = torch.zeros((1, 80, vocoder_history_size)).to(
                     self.device
                 )
 
@@ -245,26 +328,25 @@ class Trainer:
 
                     feat = self.asr_model.feature_extractor(audio)
 
-                    feat_history = torch.cat([feat_history, feat], dim=1)[
+                    feat_1_history = torch.cat([feat_1_history, feat], dim=1)[
                         :, -asr_history_size:, :
                     ]
 
-                    feature = self.asr_model.encoder(feat_history)[:, -6:, :]
+                    feat = self.asr_model.encoder(feat_1_history)[:, -6:, :]
 
-                    feature_history = torch.cat([feature_history, feature], dim=1)[
+                    feat_2_history = torch.cat([feat_2_history, feat], dim=1)[
                         :, -history_size:, :
                     ]
 
-                    mu, sigma = self.bottleneck(feature_history)
-                    # z = mu + torch.exp(sigma) * torch.rand_like(mu)
-                    z = torch.cat([mu, sigma], dim=1)
-                    mel_hat = self.flow.reverse(z)[:, :, -6:]
+                    mu, log_sigma = self.bottleneck(feat_2_history)
+                    z = mu + torch.rand_like(mu) * torch.exp(log_sigma)
+                    feat = self.flow.reverse(z)[:, :, -6:]
 
-                    mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)[
+                    feat_3_history = torch.cat([feat_3_history, feat], dim=2)[
                         :, :, -vocoder_history_size:
                     ]
 
-                    audio_hat = self.vocoder(mel_hat_history)[:, :, -256 * 6 :]
+                    audio_hat = self.vocoder(feat_3_history)[:, :, -256 * 6 :]
                     audio_items.append(audio_hat)
 
                     # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
@@ -282,5 +364,6 @@ class Trainer:
                 )
 
         # Resume training
-        self.flow.train()
         self.bottleneck.train()
+        self.flow.train()
+        self.vocoder.train()
