@@ -167,11 +167,6 @@ class Trainer:
                 feature = self.asr_model.encoder(feat)
                 mu_2, log_sigma_2 = self.bottleneck(feature)
 
-                print(mu_1)
-                print(log_sigma_1)
-                print(mu_2)
-                print(log_sigma_2)
-
                 loss_kl = kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2)
                 kl_losses.append(loss_kl.item())
 
