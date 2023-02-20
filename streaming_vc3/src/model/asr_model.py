@@ -30,7 +30,7 @@ class ASRModel(nn.Module):
         self.vocab_size = vocab_size
 
         # モジュール
-        self.feature_extractor = FeatureExtractor(0.8, 1.2)
+        self.feature_extractor = FeatureExtractor()
         self.encoder = Encoder(self.input_feature_size, self.decoder_feature_size)
         self.decoder = Decoder(self.decoder_feature_size, vocab_size)
         self.ctc_layers = nn.Linear(self.decoder_feature_size, vocab_size, bias=False)

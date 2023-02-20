@@ -17,6 +17,8 @@ from src.model.random_resize_feature_extractor import FeatureExtractor
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
+AUDIO_LENGTH = int(24000 * 3.0)
+MEL_LENGTH = AUDIO_LENGTH // 256
 
 
 class Trainer:
@@ -70,7 +72,7 @@ class Trainer:
         asr_ckpt = torch.load(asr_ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(asr_ckpt["model"])
 
-        self.random_feature_extractor = FeatureExtractor(0.8, 1.2)
+        self.random_feature_extractor = FeatureExtractor(0.8, 1.2).to(self.device)
 
         self.mel = torchaudio.transforms.MelSpectrogram(
             n_fft=1024,
@@ -147,21 +149,28 @@ class Trainer:
 
         def kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2):
             kl = log_sigma_1 - log_sigma_2 - 0.5
-            kl += 0.5 * ((mu_1 - mu_2) ** 2) / torch.exp(2.0 * log_sigma_1)
-            return
+            kl += 0.5 * ((mu_1 - mu_2) ** 2) * torch.exp(-2.0 * log_sigma_1)
+            return kl.mean()
 
         while self.step < self.max_step:
 
             for audio in self.data_loader:
                 audio = audio.to(self.device)
+                audio = audio.squeeze(1)
 
                 mel = self.mel(audio)
+                mel = mel[:, :, :MEL_LENGTH]
                 xs, log_det_jacobian = self.flow(mel)
                 mu_1, log_sigma_1 = xs.chunk(2, dim=1)
 
                 feat = self.random_feature_extractor(audio)
                 feature = self.asr_model.encoder(feat)
                 mu_2, log_sigma_2 = self.bottleneck(feature)
+
+                print(mu_1)
+                print(log_sigma_1)
+                print(mu_2)
+                print(log_sigma_2)
 
                 loss_kl = kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2)
                 kl_losses.append(loss_kl.item())
@@ -252,7 +261,8 @@ class Trainer:
                     ]
 
                     mu, sigma = self.bottleneck(feature_history)
-                    z = mu + torch.exp(sigma) * torch.rand_like(mu)
+                    # z = mu + torch.exp(sigma) * torch.rand_like(mu)
+                    z = torch.cat([mu, sigma], dim=1)
                     mel_hat = self.flow.reverse(z)[:, :, -6:]
 
                     mel_hat_history = torch.cat([mel_hat_history, mel_hat], dim=2)[
