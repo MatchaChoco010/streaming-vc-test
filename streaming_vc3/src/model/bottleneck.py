@@ -15,10 +15,10 @@ class Bottleneck(nn.Module):
         self.layers = nn.Sequential(
             FFTBlockST(128, 512),
             FFTBlockST(512, 512),
-            FFTBlockST(512, 24),
+            FFTBlockST(512, 128),
         )
-        self.proj_mu = nn.Linear(24, 128)
-        self.proj_log_sigma = nn.Linear(24, 128)
+        self.proj_mu = nn.Linear(128, 128)
+        self.proj_log_sigma = nn.Linear(128, 128)
 
     def forward(self, xs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         xs = self.layers(xs)
