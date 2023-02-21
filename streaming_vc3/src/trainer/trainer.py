@@ -389,7 +389,7 @@ class Trainer:
                 # historyを初期化
                 feat_1_history = torch.zeros((1, history_size, 240)).to(self.device)
                 feat_2_history = torch.zeros((1, history_size, 128)).to(self.device)
-                feat_3_history = torch.zeros((1, 128, vocoder_history_size)).to(
+                feat_3_history = torch.zeros((1, 256, vocoder_history_size)).to(
                     self.device
                 )
 
