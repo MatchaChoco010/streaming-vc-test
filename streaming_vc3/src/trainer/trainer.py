@@ -174,8 +174,8 @@ class Trainer:
         mel_errors = []
 
         def kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2):
-            kl = log_sigma_1 - log_sigma_2 - 0.5
-            kl += 0.5 * ((mu_1 - mu_2) ** 2) * torch.exp(-2.0 * log_sigma_1)
+            kl = log_sigma_2 - log_sigma_1 - 0.5
+            kl += 0.5 * ((mu_1 - mu_2) ** 2) * torch.exp(-2.0 * log_sigma_2)
             return kl.mean()
 
         while self.step < self.max_step:
