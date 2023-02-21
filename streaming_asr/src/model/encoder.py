@@ -2,9 +2,8 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
-from src.module.mask import chunk_mask, length_mask
 from src.module.multi_head_attention import MultiHeadAttention
-from src.module.positional_encoding import ChunkPositionalEncoding
+from src.module.positional_encoding import PositionalEncoding
 
 CHUNK_SIZE = 6
 
@@ -100,7 +99,7 @@ class Encoder(nn.Module):
             nn.Linear(input_feature_size, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
-            ChunkPositionalEncoding(512, 6),
+            PositionalEncoding(512, 6),
         )
 
         # Encoderのレイヤー

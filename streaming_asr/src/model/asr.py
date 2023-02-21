@@ -74,9 +74,7 @@ class ASR(nn.Module):
             audio_item = F.pad(
                 audio_item, (0, CHUNK_SIZE - audio_item.shape[1]), "constant", 0
             )
-            audio_feature_item = self.feature_extractor(
-                audio_item
-            )
+            audio_feature_item = self.feature_extractor(audio_item)
             audio_features.append(audio_feature_item)
         audio_feature = torch.cat(audio_features, dim=1)
 
@@ -88,7 +86,7 @@ class ASR(nn.Module):
         history_layer_5 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
         history_layer_6 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
         encoder_feature_items: List[torch.Tensor] = []
-        for i in range(0, audio_feature.shape[1], 6):
+        for af in audio_feature.split(6, dim=1):
             (
                 encoder_feature_item,
                 history_layer_1,
@@ -98,7 +96,7 @@ class ASR(nn.Module):
                 history_layer_5,
                 history_layer_6,
             ) = self.encoder(
-                audio_feature[:, i : i + 6],
+                af,
                 history_layer_1,
                 history_layer_2,
                 history_layer_3,
@@ -120,10 +118,7 @@ class ASR(nn.Module):
         return encode_len, ctc_output, att_output
 
     def forward_test(
-        self,
-        audio: torch.Tensor,
-        audio_lengths: torch.Tensor,
-        decode_step: int
+        self, audio: torch.Tensor, audio_lengths: torch.Tensor, decode_step: int
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Arguments:
@@ -153,9 +148,7 @@ class ASR(nn.Module):
             audio_item = F.pad(
                 audio_item, (0, CHUNK_SIZE - audio_item.shape[1]), "constant", 0
             )
-            audio_feature_item = self.feature_extractor(
-                audio_item
-            )
+            audio_feature_item = self.feature_extractor(audio_item)
             audio_features.append(audio_feature_item)
         audio_feature = torch.cat(audio_features, dim=1)
 
@@ -167,7 +160,7 @@ class ASR(nn.Module):
         history_layer_5 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
         history_layer_6 = torch.zeros((batch_size, 6, 512)).to(audio_lengths.device)
         encoder_feature_items: List[torch.Tensor] = []
-        for i in range(0, audio_feature.shape[1], 6):
+        for af in audio_feature.split(6, dim=1):
             (
                 encoder_feature_item,
                 history_layer_1,
@@ -177,7 +170,7 @@ class ASR(nn.Module):
                 history_layer_5,
                 history_layer_6,
             ) = self.encoder(
-                audio_feature[:, i : i + 6],
+                af,
                 history_layer_1,
                 history_layer_2,
                 history_layer_3,
