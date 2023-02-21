@@ -22,7 +22,7 @@ class Generator(torch.nn.Module):
         self.num_upsamples = len(self.upsample_rates)
 
         self.conv_pre = weight_norm(
-            CausalConv1d(128, self.upsample_initial_channel, 7, 1)
+            CausalConv1d(256, self.upsample_initial_channel, 7, 1)
         )
 
         self.ups = nn.ModuleList()

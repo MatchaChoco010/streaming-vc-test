@@ -171,6 +171,13 @@ class Trainer:
 
         d_losses = []
         g_losses = []
+
+        gen_s_losses = []
+        gen_f_losses = []
+        fm_s_losses = []
+        fm_f_losses = []
+        mel_losses = []
+        kl_losses = []
         mel_errors = []
 
         def kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2):
@@ -243,6 +250,13 @@ class Trainer:
                 d_losses.append(loss_disc_all.item())
                 g_losses.append(loss_gen_all.item())
 
+                gen_s_losses.append(loss_gen_s.item())
+                gen_f_losses.append(loss_gen_f.item())
+                fm_s_losses.append(loss_fm_s.item())
+                fm_f_losses.append(loss_fm_f.item())
+                mel_losses.append(loss_mel.item())
+                kl_losses.append(loss_kl.item())
+
                 # ロギング
                 if self.step % self.progress_step == 0:
                     ## console
@@ -261,9 +275,44 @@ class Trainer:
                     self.log.add_scalar(
                         "train/mel_error", sum(mel_errors) / len(mel_errors), self.step
                     )
+
+                    self.log.add_scalar(
+                        "train/loss/gen_s",
+                        sum(gen_s_losses) / len(gen_s_losses),
+                        self.step,
+                    )
+                    self.log.add_scalar(
+                        "train/loss/gen_f",
+                        sum(gen_f_losses) / len(gen_f_losses),
+                        self.step,
+                    )
+                    self.log.add_scalar(
+                        "train/loss/fm_s",
+                        sum(fm_s_losses) / len(fm_s_losses),
+                        self.step,
+                    )
+                    self.log.add_scalar(
+                        "train/loss/fm_f",
+                        sum(fm_f_losses) / len(fm_f_losses),
+                        self.step,
+                    )
+                    self.log.add_scalar(
+                        "train/loss/mel", sum(mel_losses) / len(mel_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/loss/kl", sum(kl_losses) / len(kl_losses), self.step
+                    )
                     # reset losses
                     d_losses = []
                     g_losses = []
+                    mel_errors = []
+
+                    gen_s_losses = []
+                    gen_f_losses = []
+                    fm_s_losses = []
+                    fm_f_losses = []
+                    mel_losses = []
+                    kl_losses = []
                     mel_errors = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
@@ -294,10 +343,37 @@ class Trainer:
                 y = torchaudio.transforms.Resample(sr, 24000)(y).to(device=self.device)
                 self.log.add_audio(f"before/audio/{filepath.name}", y, self.step, 24000)
 
+        # PosteriorEncoder-Decoderを試す
+        with torch.no_grad():
+            asr_history_size = 6 * 256
+            history_size = 128
+            vocoder_history_size = 16
+
+            for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
+                current_time = self.get_time()
+                print(
+                    f"[{current_time}][Step: {self.step}] Start convert test file : {filepath.name[:24]}"
+                )
+
+                y, sr = torchaudio.load(str(filepath))
+                y = torchaudio.transforms.Resample(sr, 24000)(y).squeeze(0)
+                y = y.to(device=self.device)
+
+                spec = self.spec(y.unsqueeze(0))[:, :, :-1]
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                audio_hat = self.vocoder(z)
+
+                self.log.add_audio(
+                    f"posterior-vocoder/audio/{filepath.name}",
+                    audio_hat[-1],
+                    self.step,
+                    24000,
+                )
+
         # テストデータで試す
         with torch.no_grad():
             asr_history_size = 6 * 256
-            history_size = 6 * 64
+            history_size = 128
             vocoder_history_size = 16
 
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):

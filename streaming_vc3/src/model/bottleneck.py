@@ -12,16 +12,16 @@ class Bottleneck(nn.Module):
 
     def __init__(self):
         super(Bottleneck, self).__init__()
-        self.layers = nn.Sequential(
-            FFTBlockST(128, 512),
-            FFTBlockST(512, 512),
-            FFTBlockST(512, 128),
-        )
-        self.proj_mu = nn.Linear(128, 128)
-        self.proj_log_sigma = nn.Linear(128, 128)
+        # self.layers = nn.Sequential(
+        #     FFTBlockST(128, 512),
+        #     FFTBlockST(512, 512),
+        #     FFTBlockST(512, 128),
+        # )
+        self.proj_mu = nn.Conv1d(128, 256, 1)
+        self.proj_log_sigma = nn.Conv1d(128, 256, 1)
 
     def forward(self, xs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        xs = self.layers(xs)
+        # xs = self.layers(xs)
         mu = torch.tanh(self.proj_mu(xs)).transpose(1, 2)
         log_sigma = self.proj_log_sigma(xs).transpose(1, 2)
         return mu, log_sigma

@@ -56,7 +56,7 @@ class WN(nn.Module):
             if i < self.n_layers - 1:
                 res_acts, skip_acts = res_skip_acts.chunk(2, dim=1)
                 x = x + res_acts
-                ouput = output + skip_acts
+                output = output + skip_acts
             else:
                 output = output + res_skip_acts
 
