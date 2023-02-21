@@ -99,7 +99,7 @@ class Encoder(nn.Module):
             nn.Linear(input_feature_size, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
-            PositionalEncoding(512, 6),
+            PositionalEncoding(512),
         )
 
         # Encoderのレイヤー
