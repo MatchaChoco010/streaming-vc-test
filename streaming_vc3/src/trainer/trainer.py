@@ -36,7 +36,6 @@ class Trainer:
         voice_data_dir: str,
         testdata_dir: str,
         asr_ckpt_path: str,
-        vocoder_ckpt_path: str,
         batch_size: int = 4,
         max_step: int = 10000001,
         progress_step: int = 10,
@@ -183,20 +182,19 @@ class Trainer:
 
             for audio in self.data_loader:
                 audio = audio.to(self.device)
-                audio = audio.squeeze(1)
 
-                feat = self.random_feature_extractor(audio)
+                feat = self.random_feature_extractor(audio.squeeze(1))
                 feature = self.asr_model.encoder(feat)
                 mu_1, log_sigma_1 = self.bottleneck(feature)
 
-                spec = self.spec(audio)
+                spec = self.spec(audio.squeeze(1))[:, :, :-1]
                 z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
                 z_p = self.flow(z)
 
                 audio_hat = self.vocoder(z)
 
-                mel = log_melspectrogram(self.spec(audio))
-                mel_hat = log_melspectrogram(self.spec(audio_hat))
+                mel = log_melspectrogram(self.spec(audio)[:, :, :-1])
+                mel_hat = log_melspectrogram(self.spec(audio_hat)[:, :, :-1])
 
                 # discrimator step
                 self.optimizer_d.zero_grad()
@@ -315,7 +313,7 @@ class Trainer:
                 # historyを初期化
                 feat_1_history = torch.zeros((1, history_size, 240)).to(self.device)
                 feat_2_history = torch.zeros((1, history_size, 128)).to(self.device)
-                feat_3_history = torch.zeros((1, 80, vocoder_history_size)).to(
+                feat_3_history = torch.zeros((1, 128, vocoder_history_size)).to(
                     self.device
                 )
 

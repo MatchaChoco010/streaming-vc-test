@@ -8,7 +8,7 @@ import torchaudio
 from torch.utils.data import DataLoader, IterableDataset
 from src.module.log_melspectrogram import log_melspectrogram
 
-AUDIO_LENGTH = int(24000 * 3.0)
+AUDIO_LENGTH = 256 * 128
 
 
 class VoiceDataset(IterableDataset):
