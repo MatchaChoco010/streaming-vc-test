@@ -390,10 +390,6 @@ class Trainer:
 
         # テストデータで試す
         with torch.no_grad():
-            asr_history_size = 6 * 256
-            history_size = 128
-            vocoder_history_size = 16
-
             for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
                 current_time = self.get_time()
                 print(
@@ -413,7 +409,7 @@ class Trainer:
 
                 self.log.add_audio(
                     f"generate-all/audio/{filepath.name}",
-                    audio_hat[-1] / 2.0,
+                    audio_hat[-1],
                     self.step,
                     24000,
                 )
