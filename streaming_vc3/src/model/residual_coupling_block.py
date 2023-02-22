@@ -9,7 +9,7 @@ class ResidualCouplingLayer(nn.Module):
         super(ResidualCouplingLayer, self).__init__()
         self.pre = nn.Conv1d(128, 512, 1)
         self.enc = WN(hidden_dim=512, kernel_size=5, dilation_rate=1, n_layers=4)
-        self.post = nn.Conv1d(512, 256, 1)
+        self.post = nn.Conv1d(512, 128, 1)
         self.post.weight.data.zero_()
         self.post.bias.data.zero_()
 
@@ -19,7 +19,9 @@ class ResidualCouplingLayer(nn.Module):
         h = self.pre(x1)
         h = self.enc(h)
         h = self.post(h)
-        mu, log_sigma = h.chunk(2, dim=1)
+        # mu, log_sigma = h.chunk(2, dim=1)
+        mu = h
+        log_sigma = torch.zeros_like(mu)
 
         x2 = mu + x2 * torch.exp(log_sigma)
 
@@ -34,7 +36,9 @@ class ResidualCouplingLayer(nn.Module):
         h = self.pre(x1)
         h = self.enc(h)
         h = self.post(h)
-        mu, log_sigma = h.chunk(2, dim=1)
+        # mu, log_sigma = h.chunk(2, dim=1)
+        mu = h
+        log_sigma = torch.zeros_like(mu)
 
         x2 = (x2 - mu) * torch.exp(-log_sigma)
 
