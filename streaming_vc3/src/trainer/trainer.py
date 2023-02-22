@@ -402,6 +402,36 @@ class Trainer:
 
                 y, sr = torchaudio.load(str(filepath))
                 y = torchaudio.transforms.Resample(sr, 24000)(y).squeeze(0)
+                y = y.to(device=self.device).unsqueeze(0)
+
+                feat = self.asr_model.feature_extractor(y)
+                feat = self.asr_model.encoder(feat)
+                mu, log_sigma = self.bottleneck(feat)
+                z = mu + torch.rand_like(mu) * torch.exp(log_sigma)
+                feat = self.flow.reverse(z)
+                audio_hat = self.vocoder(feat)
+
+                self.log.add_audio(
+                    f"generate-all/audio/{filepath.name}",
+                    audio_hat[-1] / 2.0,
+                    self.step,
+                    24000,
+                )
+
+        # テストデータで試す
+        with torch.no_grad():
+            asr_history_size = 6 * 256
+            history_size = 128
+            vocoder_history_size = 16
+
+            for filepath in pathlib.Path(self.testdata_dir).rglob("*.wav"):
+                current_time = self.get_time()
+                print(
+                    f"[{current_time}][Step: {self.step}] Start convert test file : {filepath.name[:24]}"
+                )
+
+                y, sr = torchaudio.load(str(filepath))
+                y = torchaudio.transforms.Resample(sr, 24000)(y).squeeze(0)
                 y = y.to(device=self.device)
 
                 # historyを初期化
