@@ -10,7 +10,7 @@ from src.trainer.trainer import Trainer
 batch_size: int = 4
 max_step: int = 10000001
 progress_step: int = 10
-valid_step: int = 500
+valid_step: int = 1000
 exp_name: str | None = None
 
 
