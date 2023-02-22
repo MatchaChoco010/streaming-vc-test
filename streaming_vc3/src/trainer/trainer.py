@@ -247,6 +247,13 @@ class Trainer:
                 )
 
                 loss_gen_all.backward()
+                torch.nn.utils.clip_grad_value_(
+                    list(self.bottleneck.parameters())
+                    + list(self.vocoder.parameters())
+                    + list(self.flow.parameters())
+                    + list(self.posterior_encoder.parameters()),
+                    100.0,
+                )
                 self.optimizer_g.step()
 
                 d_losses.append(loss_disc_all.item())
