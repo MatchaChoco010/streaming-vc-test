@@ -172,6 +172,8 @@ class Trainer:
         d_losses = []
         g_losses = []
 
+        d_s_losses = []
+        d_f_losses = []
         gen_s_losses = []
         gen_f_losses = []
         fm_s_losses = []
@@ -249,7 +251,8 @@ class Trainer:
 
                 d_losses.append(loss_disc_all.item())
                 g_losses.append(loss_gen_all.item())
-
+                d_s_losses.append(loss_disc_s.item())
+                d_f_losses.append(loss_disc_f.item())
                 gen_s_losses.append(loss_gen_s.item())
                 gen_f_losses.append(loss_gen_f.item())
                 fm_s_losses.append(loss_fm_s.item())
@@ -277,36 +280,44 @@ class Trainer:
                     )
 
                     self.log.add_scalar(
-                        "train/loss/gen_s",
+                        "train/loss/d/d_s", sum(d_s_losses) / len(d_s_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/loss/d/d_f", sum(d_f_losses) / len(d_f_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/loss/g/gen_s",
                         sum(gen_s_losses) / len(gen_s_losses),
                         self.step,
                     )
                     self.log.add_scalar(
-                        "train/loss/gen_f",
+                        "train/loss/g/gen_f",
                         sum(gen_f_losses) / len(gen_f_losses),
                         self.step,
                     )
                     self.log.add_scalar(
-                        "train/loss/fm_s",
+                        "train/loss/g/fm_s",
                         sum(fm_s_losses) / len(fm_s_losses),
                         self.step,
                     )
                     self.log.add_scalar(
-                        "train/loss/fm_f",
+                        "train/loss/g/fm_f",
                         sum(fm_f_losses) / len(fm_f_losses),
                         self.step,
                     )
                     self.log.add_scalar(
-                        "train/loss/mel", sum(mel_losses) / len(mel_losses), self.step
+                        "train/loss/g/mel", sum(mel_losses) / len(mel_losses), self.step
                     )
                     self.log.add_scalar(
-                        "train/loss/kl", sum(kl_losses) / len(kl_losses), self.step
+                        "train/loss/g/kl", sum(kl_losses) / len(kl_losses), self.step
                     )
                     # reset losses
                     d_losses = []
                     g_losses = []
                     mel_errors = []
 
+                    d_s_losses = []
+                    d_f_losses = []
                     gen_s_losses = []
                     gen_f_losses = []
                     fm_s_losses = []
