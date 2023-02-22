@@ -20,7 +20,7 @@ class Bottleneck(nn.Module):
         self.proj_log_sigma = nn.Conv1d(32, 256, 1)
 
     def forward(self, xs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        # xs = self.layers(xs)
+        xs = self.layers(xs).transpose(1, 2)
         mu = torch.tanh(self.proj_mu(xs))
         log_sigma = self.proj_log_sigma(xs)
         return mu, log_sigma
