@@ -50,6 +50,7 @@ class Flip(nn.Module):
         return x, logdet
 
     def reverse(self, x):
+        x = torch.flip(x, [1])
         return x
 
 
