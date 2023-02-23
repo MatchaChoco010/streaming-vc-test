@@ -243,7 +243,7 @@ class Trainer:
                 loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
 
                 ## KL Loss
-                loss_kl = kl_loss(z_p, log_sigma_2, mu_1, log_sigma_1)
+                loss_kl = kl_loss(z_p, log_sigma_2, mu_1, log_sigma_1) * 3
 
                 loss_gen_all = (
                     loss_gen_s + loss_gen_f + loss_fm_s + loss_fm_f + loss_mel + loss_kl
