@@ -76,8 +76,7 @@ class Trainer:
         asr_ckpt = torch.load(asr_ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(asr_ckpt["model"])
 
-        # self.random_feature_extractor = FeatureExtractor(0.8, 1.2).to(self.device)
-        self.random_feature_extractor = FeatureExtractor(1.0, 1.0001).to(self.device)
+        self.random_feature_extractor = FeatureExtractor(0.4, 1.2).to(self.device)
 
         self.spec = torchaudio.transforms.MelSpectrogram(
             n_fft=1024,
@@ -101,13 +100,13 @@ class Trainer:
             + list(self.vocoder.parameters())
             + list(self.flow.parameters())
             + list(self.posterior_encoder.parameters()),
-            lr=0.0004,
+            lr=0.0002,
             betas=(0.8, 0.99),
             eps=1e-9,
         )
         self.optimizer_d = optim.AdamW(
             list(self.mpd.parameters()) + list(self.msd.parameters()),
-            lr=0.0004,
+            lr=0.0002,
             betas=(0.8, 0.99),
             eps=1e-9,
         )
