@@ -14,10 +14,9 @@ class Bottleneck(nn.Module):
         super(Bottleneck, self).__init__()
         self.layers = nn.Sequential(
             FFTBlockST(128, 512),
-            FFTBlockST(512, 64),
+            FFTBlockST(512, 512),
+            nn.Linear(512, 64),
         )
-        self.proj_mu = nn.Conv1d(64, 256, 1)
-        self.proj_log_sigma = nn.Conv1d(64, 256, 1)
         self.proj_mu = nn.Conv1d(64, 256, 1)
         self.proj_log_sigma = nn.Conv1d(64, 256, 1)
 
