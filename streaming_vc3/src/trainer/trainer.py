@@ -101,13 +101,13 @@ class Trainer:
             + list(self.vocoder.parameters())
             + list(self.flow.parameters())
             + list(self.posterior_encoder.parameters()),
-            lr=0.001,
+            lr=0.0004,
             betas=(0.8, 0.99),
             eps=1e-9,
         )
         self.optimizer_d = optim.AdamW(
             list(self.mpd.parameters()) + list(self.msd.parameters()),
-            lr=0.001,
+            lr=0.0004,
             betas=(0.8, 0.99),
             eps=1e-9,
         )
