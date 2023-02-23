@@ -101,13 +101,13 @@ class Trainer:
             + list(self.vocoder.parameters())
             + list(self.flow.parameters())
             + list(self.posterior_encoder.parameters()),
-            lr=0.0002,
+            lr=0.001,
             betas=(0.8, 0.99),
             eps=1e-9,
         )
         self.optimizer_d = optim.AdamW(
             list(self.mpd.parameters()) + list(self.msd.parameters()),
-            lr=0.0002,
+            lr=0.001,
             betas=(0.8, 0.99),
             eps=1e-9,
         )
@@ -148,8 +148,8 @@ class Trainer:
 
         ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-latest.pt")
         torch.save(save_dict, ckpt_path)
-        ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step}.pt")
-        torch.save(save_dict, ckpt_path)
+        # ckpt_path = os.path.join(self.ckpt_dir, f"ckpt-{self.step}.pt")
+        # torch.save(save_dict, ckpt_path)
 
     def get_time(self) -> str:
         """
