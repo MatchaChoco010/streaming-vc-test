@@ -76,7 +76,8 @@ class Trainer:
         asr_ckpt = torch.load(asr_ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(asr_ckpt["model"])
 
-        self.random_feature_extractor = FeatureExtractor(0.8, 1.2).to(self.device)
+        # self.random_feature_extractor = FeatureExtractor(0.8, 1.2).to(self.device)
+        self.random_feature_extractor = FeatureExtractor(1.0, 1.0001).to(self.device)
 
         self.spec = torchaudio.transforms.MelSpectrogram(
             n_fft=1024,
