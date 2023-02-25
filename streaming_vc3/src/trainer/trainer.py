@@ -76,7 +76,7 @@ class Trainer:
         asr_ckpt = torch.load(asr_ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(asr_ckpt["model"])
 
-        self.random_feature_extractor = FeatureExtractor(0.95, 1.05).to(self.device)
+        self.random_feature_extractor = FeatureExtractor(0.85, 1.15).to(self.device)
 
         self.spec = torchaudio.transforms.MelSpectrogram(
             n_fft=1024,
@@ -118,11 +118,10 @@ class Trainer:
             "train/params",
             f"g_lr: {0.00025}  \n"
             + f"d_lr: {0.00025}  \n"
-            + f"sr-range: {0.95}-{1.05}  \n"
+            + f"sr-range: {0.85}-{1.15}  \n"
             + f"bottleneck: {64}",
             0,
         )
-
 
     def load_ckpt(self):
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
