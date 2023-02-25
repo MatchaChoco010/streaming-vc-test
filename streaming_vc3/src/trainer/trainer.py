@@ -114,6 +114,16 @@ class Trainer:
         if exp_name is not None:
             self.load_ckpt()
 
+        self.log.add_text(
+            "train/params",
+            f"g_lr: {0.00025}  \n"
+            + f"d_lr: {0.00025}  \n"
+            + f"sr-range: {0.95}-{1.05}  \n"
+            + f"bottleneck: {64}",
+            0,
+        )
+
+
     def load_ckpt(self):
         ckpt_path = os.path.join(self.ckpt_dir, "ckpt-latest.pt")
         ckpt = torch.load(ckpt_path, map_location=self.device)
