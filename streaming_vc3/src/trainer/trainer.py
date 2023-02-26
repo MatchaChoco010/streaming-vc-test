@@ -202,7 +202,7 @@ class Trainer:
                 feat = feat.to(self.device)
 
                 feature = self.asr_model.encoder(feat)
-                mu_1, log_sigma_1 = self.bottleneck(feature)
+                _, mu_1, log_sigma_1 = self.bottleneck(feature)
 
                 spec = self.spec(audio.squeeze(1))[:, :, :-1]
                 z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
@@ -410,8 +410,7 @@ class Trainer:
 
                 feat = self.asr_model.feature_extractor(y)
                 feat = self.asr_model.encoder(feat)
-                mu, log_sigma = self.bottleneck(feat)
-                z = mu + torch.rand_like(mu) * torch.exp(log_sigma)
+                z, mu, log_sigma = self.bottleneck(feat)
                 feat = self.flow.reverse(z)
                 audio_hat = self.vocoder(feat)
 
@@ -464,8 +463,7 @@ class Trainer:
                         :, -history_size:, :
                     ]
 
-                    mu, log_sigma = self.bottleneck(feat_2_history)
-                    z = mu + torch.rand_like(mu) * torch.exp(log_sigma)
+                    z, _, _ = self.bottleneck(feat_2_history)
                     feat = self.flow.reverse(z)[:, :, -6:]
 
                     feat_3_history = torch.cat([feat_3_history, feat], dim=2)[

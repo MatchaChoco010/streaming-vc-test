@@ -1,0 +1,14 @@
+import os
+import sys
+import argparse
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from src.util.extract_onnx import extract
+
+parser = argparse.ArgumentParser(description="export onnx model")
+parser.add_argument("--ckpt", required=True)
+args = parser.parse_args()
+ckpt_path = args.ckpt
+
+extract(ckpt_path)
