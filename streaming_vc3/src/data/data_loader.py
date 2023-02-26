@@ -1,36 +1,42 @@
 import pathlib
 import random
-from typing import Tuple
 
 import torch
 import torch.nn.functional as F
 import torchaudio
 from torch.utils.data import DataLoader, IterableDataset
-from src.module.log_melspectrogram import log_melspectrogram
+from src.model.resize_feature_extractor import FeatureExtractor
 
 AUDIO_LENGTH = 256 * 128
 
 
 class VoiceDataset(IterableDataset):
-    def __init__(self, voice_data_dir):
+    def __init__(self, voice_data_dir, min_scale: int, max_scale: int):
         self.file_list = [
             str(item) for item in pathlib.Path(voice_data_dir).rglob("*.wav")
         ]
+        self.feature_extractor = FeatureExtractor()
+        self.min_scale = min_scale
+        self.max_scale = max_scale
 
     def __iter__(self):
         for item in self.file_list:
             audio, _ = torchaudio.load(item)
 
-            start = random.randint(0, max(0, audio.shape[1] - AUDIO_LENGTH))
-            clip_audio = audio[:, start : start + AUDIO_LENGTH]
-            if clip_audio.shape[1] < AUDIO_LENGTH:
-                clip_audio = F.pad(
-                    clip_audio,
-                    (0, AUDIO_LENGTH - clip_audio.shape[1]),
-                    "constant",
-                )
+            for scale in range(self.min_scale, self.max_scale + 1):
 
-            yield clip_audio
+                start = random.randint(0, max(0, audio.shape[1] - AUDIO_LENGTH))
+                clip_audio = audio[:, start : start + AUDIO_LENGTH]
+                if clip_audio.shape[1] < AUDIO_LENGTH:
+                    clip_audio = F.pad(
+                        clip_audio,
+                        (0, AUDIO_LENGTH - clip_audio.shape[1]),
+                        "constant",
+                    )
+
+                feat = self.feature_extractor(clip_audio, scale).squeeze(0)
+
+                yield clip_audio, feat
 
 
 class ShuffleDataset(torch.utils.data.IterableDataset):
@@ -66,10 +72,12 @@ class ShuffleDataset(torch.utils.data.IterableDataset):
 def load_data(
     voice_data_dir: str,
     batch_size: int,
+    min_scale: int,
+    max_scale: int,
 ) -> DataLoader:
     voice_data_loader = DataLoader(
-        ShuffleDataset(VoiceDataset(voice_data_dir), 32),
-        batch_size=max(batch_size, 1),
+        ShuffleDataset(VoiceDataset(voice_data_dir, min_scale, max_scale), 8192),
+        batch_size=batch_size,
         drop_last=False,
         pin_memory=True,
     )

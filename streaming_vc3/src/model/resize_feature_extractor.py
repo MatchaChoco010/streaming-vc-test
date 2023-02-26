@@ -66,7 +66,7 @@ class FeatureExtractor(nn.Module):
     audioの特徴量を抽出するモジュール。
     """
 
-    def __init__(self, min_ratio: float, max_ratio: float):
+    def __init__(self):
         super(FeatureExtractor, self).__init__()
         self.melspec = Spectrogram(
             sr=24000,
@@ -76,14 +76,14 @@ class FeatureExtractor(nn.Module):
             padding=512,
         )
         self.delta = Delta()
-        self.min_ratio = min_ratio
-        self.max_ratio = max_ratio
 
-    def forward(self, xs: torch.Tensor) -> torch.Tensor:
+    def forward(self, xs: torch.Tensor, scale: int) -> torch.Tensor:
         """
         Arguments:
             xs: torch.Tensor (batch, max(audio_len))
                 オーディオの入力
+            scale: int
+                スケール後のmelのサイズ（80基準)
         Returns:
             (ys, y_lengths): Tuple[torch.Tensor, torch.Tensor]
             ys: torch.Tensor (batch, seq_len, feature_size)
@@ -94,13 +94,12 @@ class FeatureExtractor(nn.Module):
         # メルスペクトログラムをDBベースにするためにlogを取る
         ys = torch.log(torch.clamp(ys, min=1e-5))
 
-        # 縦方向にランダムにリサイズする
-        r = random.uniform(self.min_ratio, self.max_ratio)
-        height = int(ys.shape[1] * r)
+        # 縦方向にリサイズする
+        height = scale
         ys = torchvision.transforms.functional.resize(
             img=ys, size=(height, ys.shape[2])
         )
-        if r <= 1.0:
+        if scale < 80:
             ys = torchvision.transforms.Pad(
                 padding=(0, 0, 0, 80 - ys.shape[1]), padding_mode="edge"
             )(ys)

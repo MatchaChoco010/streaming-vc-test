@@ -16,7 +16,6 @@ from src.model.residual_coupling_block import ResidualCouplingBlock
 from src.model.bottleneck import Bottleneck
 from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
-from src.model.random_resize_feature_extractor import FeatureExtractor
 from src.module.log_melspectrogram import log_melspectrogram
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
 from torch import optim
@@ -76,8 +75,6 @@ class Trainer:
         asr_ckpt = torch.load(asr_ckpt_path, map_location=self.device)
         self.asr_model.load_state_dict(asr_ckpt["model"])
 
-        self.random_feature_extractor = FeatureExtractor(0.4, 1.3).to(self.device)
-
         self.spec = torchaudio.transforms.MelSpectrogram(
             n_fft=1024,
             n_mels=80,
@@ -93,7 +90,7 @@ class Trainer:
         self.mpd = MultiPeriodDiscriminator().to(self.device)
         self.msd = MultiScaleDiscriminator().to(self.device)
 
-        self.data_loader = load_data(voice_data_dir, batch_size)
+        self.data_loader = load_data(voice_data_dir, batch_size, 40, 120)
 
         self.optimizer_g = optim.AdamW(
             list(self.bottleneck.parameters())
@@ -118,7 +115,7 @@ class Trainer:
             "train/params",
             f"g_lr: {0.00025}  \n"
             + f"d_lr: {0.00025}  \n"
-            + f"sr-range: {0.4}-{1.3}  \n"
+            + f"sr-range: {40}-{120}  \n"
             + f"bottleneck: {64}",
             0,
         )
@@ -200,10 +197,10 @@ class Trainer:
 
         while self.step < self.max_step:
 
-            for audio in self.data_loader:
+            for audio, feat in self.data_loader:
                 audio = audio.to(self.device)
+                feat = feat.to(self.device)
 
-                feat = self.random_feature_extractor(audio.squeeze(1))
                 feature = self.asr_model.encoder(feat)
                 mu_1, log_sigma_1 = self.bottleneck(feature)
 
