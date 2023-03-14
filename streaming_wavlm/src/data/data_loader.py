@@ -28,8 +28,10 @@ class ReazonDataset(IterableDataset):
         self.train = train
         if self.train:
             self.dataset = load_dataset(  # type: ignore
-                # "reazon-research/reazonspeech", "medium", streaming=True
-                "reazon-research/reazonspeech", "small"
+                "reazon-research/reazonspeech",
+                "medium",
+                streaming=True
+                # "reazon-research/reazonspeech", "small"
             )["train"]
         else:
             self.dataset = load_dataset(  # type: ignore

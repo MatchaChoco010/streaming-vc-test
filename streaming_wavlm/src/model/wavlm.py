@@ -239,8 +239,6 @@ class TransformerEncoder(nn.Module):
         self.pos_conv = nn.Sequential(self.pos_conv_, SamePad(128), nn.GELU())
 
         self.relative_position_embedding = False
-        self.num_buckets = 320
-        self.max_distance = 1280
 
         self.layers = nn.ModuleList(
             [
@@ -251,8 +249,8 @@ class TransformerEncoder(nn.Module):
                     dropout=self.dropout,
                     attention_dropout=0.1,
                     activation_dropout=0.0,
-                    # layer_norm_first=False,
-                    layer_norm_first=True,
+                    layer_norm_first=False,
+                    # layer_norm_first=True,
                 )
                 for i in range(12)
             ]
@@ -323,6 +321,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(ffn_embedding_dim, self.embedding_dim)
         self.final_layer_norm = LayerNorm(self.embedding_dim)
 
+        self.alpha = (2 * 12) ** 0.25
+
     def forward(
         self,
         x: torch.Tensor,
@@ -371,7 +371,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
             x = self.dropout2(x)
             x = self.fc2(x)
             x = self.dropout3(x)
-            x = residual + x
+            x = residual + x * self.alpha
             x = self.final_layer_norm(x)
 
         return x, attn

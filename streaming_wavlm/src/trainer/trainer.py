@@ -53,7 +53,7 @@ class Trainer:
 
         self.optimizer = torch.optim.Adam(
             list(self.wavlm.parameters()) + list(self.fc.parameters()),
-            lr=0.0002,
+            lr=0.0001,
         )
 
         if exp_name is not None:
@@ -61,7 +61,7 @@ class Trainer:
 
         self.log.add_text(
             "train/params",
-            f"lr: {0.0002}  \n",
+            f"lr: {0.0001}  \n",
             0,
         )
 
