@@ -6,7 +6,7 @@ authors = ["ORITO Itsuki <me@orito-itsuki.net>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "=3.10.6"
+python = ">=3.10.6,<3.12"
 jiwer = "^2.5.1"
 joblib = "^1.2.0"
 librosa = "^0.9.2"
