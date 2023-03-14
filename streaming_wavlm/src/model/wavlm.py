@@ -249,8 +249,8 @@ class TransformerEncoder(nn.Module):
                     dropout=self.dropout,
                     attention_dropout=0.1,
                     activation_dropout=0.0,
-                    layer_norm_first=False,
-                    # layer_norm_first=True,
+                    # layer_norm_first=False,
+                    layer_norm_first=True,
                 )
                 for i in range(12)
             ]
