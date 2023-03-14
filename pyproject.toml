@@ -6,7 +6,7 @@ authors = ["ORITO Itsuki <me@orito-itsuki.net>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "=3.10.9"
+python = "=3.10.6"
 jiwer = "^2.5.1"
 joblib = "^1.2.0"
 librosa = "^0.9.2"
@@ -28,6 +28,8 @@ torch-tb-profiler = "^0.4.1"
 mecab-python3 = "^1.0.6"
 ipadic = "^1.0.0"
 pyaudio = "^0.2.13"
+transformers = "^4.26.1"
+scikit-learn = "^1.2.1"
 
 [tool.poetry.dependencies.convmelspec]
 git = "https://github.com/adobe-research/convmelspec"
