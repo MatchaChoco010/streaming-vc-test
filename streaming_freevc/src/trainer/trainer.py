@@ -68,7 +68,7 @@ class Trainer:
         self.start_time = datetime.now()
 
         self.wavlm = AutoModel.from_pretrained("microsoft/wavlm-large").to(self.device)
-        self.wavlm_compiled = torch.compile(self.wavlm)
+        # self.wavlm_compiled = torch.compile(self.wavlm)
 
         self.spec = torchaudio.transforms.MelSpectrogram(
             n_fft=1280,
@@ -86,13 +86,13 @@ class Trainer:
         self.mpd = MultiPeriodDiscriminator().to(self.device)
         self.msd = MultiScaleDiscriminator().to(self.device)
 
-        self.f0_decoder_compiled = torch.compile(self.f0_decoder)
-        self.bottleneck_compiled = torch.compile(self.bottleneck)
-        self.vocoder_compiled = torch.compile(self.vocoder)
-        self.flow_compiled = torch.compile(self.flow)
-        self.posterior_encoder_compiled = torch.compile(self.posterior_encoder)
-        self.mpd_compiled = torch.compile(self.mpd)
-        self.msd_compiled = torch.compile(self.msd)
+        # self.f0_decoder_compiled = torch.compile(self.f0_decoder)
+        # self.bottleneck_compiled = torch.compile(self.bottleneck)
+        # self.vocoder_compiled = torch.compile(self.vocoder)
+        # self.flow_compiled = torch.compile(self.flow)
+        # self.posterior_encoder_compiled = torch.compile(self.posterior_encoder)
+        # self.mpd_compiled = torch.compile(self.mpd)
+        # self.msd_compiled = torch.compile(self.msd)
 
         self.data_loader = load_data(voice_data_dir, batch_size, 60, 100)
 
@@ -211,24 +211,24 @@ class Trainer:
                 audio_f0 = compute_f0(audio.squeeze(1))
                 audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
 
-                outputs = self.wavlm_compiled(aug_audio)
+                outputs = self.wavlm(aug_audio)
                 feature = outputs["extract_features"]
-                z_tmp, mu_1, log_sigma_1 = self.bottleneck_compiled(feature)
+                z_tmp, mu_1, log_sigma_1 = self.bottleneck(feature)
 
                 audio_f0_aug = compute_f0(aug_audio)
 
                 audio_lf0_aug = 2595.0 * torch.log10(1.0 + audio_f0_aug / 700.0) / 500
                 norm_audio_lf0_aug = normalize_f0(audio_lf0_aug)
-                pred_audio_lf0_aug = self.f0_decoder_compiled(z_tmp, norm_audio_lf0_aug)
+                pred_audio_lf0_aug = self.f0_decoder(z_tmp, norm_audio_lf0_aug)
                 pred_audio_f0_aug = 700 * (
                     torch.pow(10, pred_audio_lf0_aug * 500 / 2595) - 1
                 )
 
                 spec = self.spec(audio.squeeze(1))[:, :, :-1]
-                z, mu_2, log_sigma_2 = self.posterior_encoder_compiled(spec)
-                z_p = self.flow_compiled(z)
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                z_p = self.flow(z)
 
-                audio_hat = self.vocoder_compiled(z, audio_f0)
+                audio_hat = self.vocoder(z, audio_f0)
 
                 mel = log_melspectrogram(self.spec(audio)[:, :, :-1])
                 mel_hat = log_melspectrogram(self.spec(audio_hat)[:, :, :-1])
@@ -237,17 +237,13 @@ class Trainer:
                 self.optimizer_d.zero_grad()
 
                 ## MPD
-                y_df_hat_r, y_df_hat_g, _, _ = self.mpd_compiled(
-                    audio, audio_hat.detach()
-                )
+                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(audio, audio_hat.detach())
                 loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(
                     y_df_hat_r, y_df_hat_g
                 )
 
                 ## MSD
-                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd_compiled(
-                    audio, audio_hat.detach()
-                )
+                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(audio, audio_hat.detach())
                 loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
                     y_ds_hat_r, y_ds_hat_g
                 )
@@ -264,12 +260,8 @@ class Trainer:
                 loss_mel = F.l1_loss(mel, mel_hat) * 45
 
                 ## GAN Loss
-                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd_compiled(
-                    audio, audio_hat
-                )
-                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd_compiled(
-                    audio, audio_hat
-                )
+                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(audio, audio_hat)
+                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(audio, audio_hat)
                 loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
                 loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
                 loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)

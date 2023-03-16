@@ -45,9 +45,7 @@ def mel_spectrogram(
             norm="slaney",
             mel_scale="slaney",
         ).transpose(0, 1)
-        mel_basis[str(fmax) + "_" + str(y.device)] = (
-            torch.from_numpy(mel).float().to(y.device)
-        )
+        mel_basis[str(fmax) + "_" + str(y.device)] = mel.float().to(y.device)
         hann_window[str(y.device)] = torch.hann_window(win_size).to(y.device)
 
     y = torch.nn.functional.pad(y.unsqueeze(1), (512, 512), mode="reflect")
@@ -73,7 +71,6 @@ def mel_spectrogram(
     spec = spectral_normalize_torch(spec)
 
     return spec
-
 
 
 class AttrDict(dict):
@@ -130,7 +127,9 @@ class VoiceDataset(IterableDataset):
                 # 縦方向にリサイズする
                 height = scale
                 mel = torchvision.transforms.functional.resize(
-                    img=mel, size=(height, mel.shape[2])
+                    img=mel,
+                    size=(height, mel.shape[2]),
+                    antialias=False,
                 )
                 if scale < 80:
                     mel = torchvision.transforms.Pad(
