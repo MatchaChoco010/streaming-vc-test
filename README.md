@@ -1,8 +1,17 @@
 # streaming-vc-test
 
 - python: 3.10.9
-- poetry: 1.3.1
+- poetry: 1.4.0
+
+## windows:
 
 ```
-postry install
+./download-torch.ps1
+poetry install
+```
+
+## linux
+
+```
+poetry install
 ```
