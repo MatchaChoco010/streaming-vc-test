@@ -4,32 +4,6 @@ import torchaudio.functional as F
 import pyworld
 
 
-# def compute_f0(wav):
-#     # freq = F.detect_pitch_frequency(
-#     #     wav,
-#     #     16000,
-#     #     freq_low=50,
-#     #     freq_high=1100,
-#     #     frame_time=320 / 16000,
-#     #     win_length=30,
-#     # )
-#     # pad_size = wav.shape[1] // 320 - freq.shape[1]
-#     # freq = torch.nn.functional.pad(freq, (0, pad_size))
-#
-#     import pysptk
-#     freq = torch.zeros(wav.shape[0], wav.shape[1] // 320).to(wav.device)
-#     for i in range(wav.shape[0]):
-#         f = pysptk.swipe(
-#             wav[i].cpu().numpy().astype(np.float32),
-#             fs=16000,
-#             hopsize=320,
-#             min=50,
-#             max=1100,
-#         )
-#         freq[i] = torch.as_tensor(f).to(wav.device)[: freq.shape[1]]
-#     return freq
-
-
 def compute_f0(wav):
     freq = torch.zeros(wav.shape[0], wav.shape[1] // 320).to(wav.device)
     for i in range(wav.shape[0]):

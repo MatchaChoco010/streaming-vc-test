@@ -9,7 +9,6 @@ import torchvision.transforms.functional
 import torchaudio
 from torch.utils.data import DataLoader, IterableDataset
 from src.hifigan.models import Generator
-from librosa.filters import mel as librosa_mel_fn
 
 AUDIO_LENGTH = 16000 * 2
 
@@ -37,9 +36,15 @@ def mel_spectrogram(
 
     global mel_basis, hann_window
     if fmax not in mel_basis:
-        mel = librosa_mel_fn(
-            sr=sampling_rate, n_fft=n_fft, n_mels=num_mels, fmin=fmin, fmax=fmax
-        )
+        mel = torchaudio.functional.melscale_fbanks(
+            sample_rate=sampling_rate,
+            n_freqs=1 + n_fft // 2,
+            n_mels=num_mels,
+            f_min=fmin,
+            f_max=fmax,
+            norm="slaney",
+            mel_scale="slaney",
+        ).transpose(0, 1)
         mel_basis[str(fmax) + "_" + str(y.device)] = (
             torch.from_numpy(mel).float().to(y.device)
         )
@@ -58,15 +63,17 @@ def mel_spectrogram(
         pad_mode="reflect",
         normalized=False,
         onesided=True,
-        return_complex=False,
+        return_complex=True,
     )
 
+    spec = torch.view_as_real(spec)
     spec = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
 
     spec = torch.matmul(mel_basis[str(fmax) + "_" + str(y.device)], spec)
     spec = spectral_normalize_torch(spec)
 
     return spec
+
 
 
 class AttrDict(dict):
