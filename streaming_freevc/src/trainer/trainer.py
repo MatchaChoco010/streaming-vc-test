@@ -17,6 +17,7 @@ from src.model.multi_scale_discriminator import MultiScaleDiscriminator
 from src.module.log_melspectrogram import log_melspectrogram
 from src.module.f0_utils import compute_f0, normalize_f0
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
+from src.trainer.reg_loss import ResidualLoss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModel
@@ -85,6 +86,18 @@ class Trainer:
         self.posterior_encoder = PosteriorEncoder().to(self.device)
         self.mpd = MultiPeriodDiscriminator().to(self.device)
         self.msd = MultiScaleDiscriminator().to(self.device)
+        self.reg_loss = ResidualLoss(
+            sample_rate=16000,
+            fft_size=2048,
+            hop_size=320,
+            f0_floor=0,
+            f0_ceil=8000,
+            n_mels=80,
+            fmin=0,
+            fmax=None,
+            power=False,
+            elim_0th=True,
+        ).to(self.device)
 
         # self.f0_decoder_compiled = torch.compile(self.f0_decoder)
         # self.bottleneck_compiled = torch.compile(self.bottleneck)
@@ -94,7 +107,7 @@ class Trainer:
         # self.mpd_compiled = torch.compile(self.mpd)
         # self.msd_compiled = torch.compile(self.msd)
 
-        self.data_loader = load_data(voice_data_dir, batch_size, 60, 100)
+        self.data_loader = load_data(voice_data_dir, batch_size, 75, 85)
 
         self.optimizer_g = optim.AdamW(
             list(self.f0_decoder.parameters())
@@ -103,13 +116,13 @@ class Trainer:
             + list(self.flow.parameters())
             + list(self.posterior_encoder.parameters()),
             lr=0.00025,
-            betas=(0.8, 0.99),
+            betas=(0.5, 0.9),
             eps=1e-9,
         )
         self.optimizer_d = optim.AdamW(
             list(self.mpd.parameters()) + list(self.msd.parameters()),
             lr=0.00025,
-            betas=(0.8, 0.99),
+            betas=(0.5, 0.9),
             eps=1e-9,
         )
 
@@ -120,8 +133,8 @@ class Trainer:
             "train/params",
             f"g_lr: {0.00025}  \n"
             + f"d_lr: {0.00025}  \n"
-            + f"sr-range: {60}-{100}  \n"
-            + f"sr-enabled: {False}  \n"
+            + f"sr-range: {75}-{85}  \n"
+            + f"sr-enabled: {True}  \n"
             + f"bottleneck: {192}, {256}",
             0,
         )
@@ -190,11 +203,12 @@ class Trainer:
         d_f_losses = []
         gen_s_losses = []
         gen_f_losses = []
-        fm_s_losses = []
-        fm_f_losses = []
+        # fm_s_losses = []
+        # fm_f_losses = []
         mel_losses = []
         kl_losses = []
         f0_losses = []
+        reg_losses = []
         mel_errors = []
 
         def kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2):
@@ -215,10 +229,13 @@ class Trainer:
                 feature = outputs["extract_features"]
                 z_tmp, mu_1, log_sigma_1 = self.bottleneck(feature)
 
-                audio_f0_aug = compute_f0(aug_audio)
+                # audio_f0_aug = compute_f0(aug_audio)
 
-                audio_lf0_aug = 2595.0 * torch.log10(1.0 + audio_f0_aug / 700.0) / 500
-                norm_audio_lf0_aug = normalize_f0(audio_lf0_aug)
+                # audio_lf0_aug = 2595.0 * torch.log10(1.0 + audio_f0_aug / 700.0) / 500
+                # norm_audio_lf0_aug = normalize_f0(audio_lf0_aug)
+                audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
+                # norm_audio_lf0_aug = normalize_f0(audio_lf0_aug)
+                norm_audio_lf0_aug = normalize_f0(audio_lf0, random_scale=True)
                 pred_audio_lf0_aug = self.f0_decoder(z_tmp, norm_audio_lf0_aug)
                 pred_audio_f0_aug = 700 * (
                     torch.pow(10, pred_audio_lf0_aug * 500 / 2595) - 1
@@ -262,8 +279,8 @@ class Trainer:
                 ## GAN Loss
                 y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(audio, audio_hat)
                 y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(audio, audio_hat)
-                loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
-                loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
+                # loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
+                # loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
                 loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
                 loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
 
@@ -273,14 +290,18 @@ class Trainer:
                 ## f0 Loss
                 loss_f0 = F.mse_loss(pred_audio_lf0_aug, audio_lf0)
 
+                ## reg loss
+                loss_reg = self.reg_loss(audio_hat, audio, audio_f0) * 2
+
                 loss_gen_all = (
                     loss_gen_s
                     + loss_gen_f
-                    + loss_fm_s
-                    + loss_fm_f
+                    # + loss_fm_s
+                    # + loss_fm_f
                     + loss_mel
                     + loss_kl
                     + loss_f0
+                    + loss_reg
                 )
 
                 loss_gen_all.backward()
@@ -299,11 +320,12 @@ class Trainer:
                 d_f_losses.append(loss_disc_f.item())
                 gen_s_losses.append(loss_gen_s.item())
                 gen_f_losses.append(loss_gen_f.item())
-                fm_s_losses.append(loss_fm_s.item())
-                fm_f_losses.append(loss_fm_f.item())
+                # fm_s_losses.append(loss_fm_s.item())
+                # fm_f_losses.append(loss_fm_f.item())
                 mel_losses.append(loss_mel.item())
                 kl_losses.append(loss_kl.item())
                 f0_losses.append(loss_f0.item())
+                reg_losses.append(loss_reg.item())
 
                 # ロギング
                 if self.step % self.progress_step == 0:
@@ -340,16 +362,16 @@ class Trainer:
                         sum(gen_f_losses) / len(gen_f_losses),
                         self.step,
                     )
-                    self.log.add_scalar(
-                        "train/loss/g/fm_s",
-                        sum(fm_s_losses) / len(fm_s_losses),
-                        self.step,
-                    )
-                    self.log.add_scalar(
-                        "train/loss/g/fm_f",
-                        sum(fm_f_losses) / len(fm_f_losses),
-                        self.step,
-                    )
+                    # self.log.add_scalar(
+                    #     "train/loss/g/fm_s",
+                    #     sum(fm_s_losses) / len(fm_s_losses),
+                    #     self.step,
+                    # )
+                    # self.log.add_scalar(
+                    #     "train/loss/g/fm_f",
+                    #     sum(fm_f_losses) / len(fm_f_losses),
+                    #     self.step,
+                    # )
                     self.log.add_scalar(
                         "train/loss/g/mel", sum(mel_losses) / len(mel_losses), self.step
                     )
@@ -358,6 +380,9 @@ class Trainer:
                     )
                     self.log.add_scalar(
                         "train/loss/g/f0", sum(f0_losses) / len(f0_losses), self.step
+                    )
+                    self.log.add_scalar(
+                        "train/loss/g/reg", sum(reg_losses) / len(reg_losses), self.step
                     )
                     # reset losses
                     d_losses = []
@@ -368,11 +393,12 @@ class Trainer:
                     d_f_losses = []
                     gen_s_losses = []
                     gen_f_losses = []
-                    fm_s_losses = []
-                    fm_f_losses = []
+                    # fm_s_losses = []
+                    # fm_f_losses = []
                     mel_losses = []
                     kl_losses = []
                     f0_losses = []
+                    reg_losses = []
                     mel_errors = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
@@ -383,7 +409,7 @@ class Trainer:
                 del loss_disc_s, losses_disc_s_r, losses_disc_s_g
                 del loss_disc_all
                 del loss_mel, fmap_f_r, fmap_f_g, fmap_s_r, fmap_s_g
-                del loss_fm_f, loss_fm_s
+                # del loss_fm_f, loss_fm_s
                 del loss_gen_f, losses_gen_f, loss_gen_s, losses_gen_s
                 del loss_kl, loss_gen_all
                 torch.cuda.empty_cache()
@@ -432,7 +458,21 @@ class Trainer:
                 audio_hat = self.vocoder(z, y_f0)
 
                 self.log.add_audio(
-                    f"posterior-vocoder/audio/{filepath.name}",
+                    f"posterior-vocoder/audio/1x/{filepath.name}",
+                    audio_hat[-1],
+                    self.step,
+                    16000,
+                )
+
+                # f0を2倍にして再構成
+                y_f0 = compute_f0(y.unsqueeze(0)) * 2
+
+                spec = self.spec(y.unsqueeze(0))[:, :, :-1]
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                audio_hat = self.vocoder(z, y_f0)
+
+                self.log.add_audio(
+                    f"posterior-vocoder/audio/2x/{filepath.name}",
                     audio_hat[-1],
                     self.step,
                     16000,
