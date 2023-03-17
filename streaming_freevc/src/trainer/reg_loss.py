@@ -101,7 +101,7 @@ class ResidualLoss(nn.Module):
                 normalized=False,
                 onesided=True,
                 return_complex=True,
-            )
+            ).transpose(1, 2)
             y = torch.view_as_real(y)
             y = torch.sqrt(y.pow(2).sum(-1) + (1e-9))
             # adjust length, (B, T', C)
@@ -142,7 +142,7 @@ class ResidualLoss(nn.Module):
             normalized=False,
             onesided=True,
             return_complex=True,
-        )
+        ).transpose(1, 2)
         s = torch.view_as_real(s)
         s = torch.sqrt(s.pow(2).sum(-1) + (1e-9))
         # adjust length, (B, T', C)
