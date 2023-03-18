@@ -7,13 +7,14 @@ import torch.nn.functional as F
 import torchaudio
 
 from src.data.data_loader import load_data
-from src.model.hifi_gan_generator import Generator
+# from src.model.hifi_gan_generator import Generator
 from src.model.posterior_encoder import PosteriorEncoder
 from src.model.residual_coupling_block import ResidualCouplingBlock
 from src.model.f0_decoder import F0Decoder
 from src.model.bottleneck import Bottleneck, BottleneckDiscriminator
-from src.model.multi_period_discriminator import MultiPeriodDiscriminator
-from src.model.multi_scale_discriminator import MultiScaleDiscriminator
+# from src.model.multi_period_discriminator import MultiPeriodDiscriminator
+# from src.model.multi_scale_discriminator import MultiScaleDiscriminator
+from src.model.vdecoder import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator
 from src.module.log_melspectrogram import log_melspectrogram
 from src.module.f0_utils import compute_f0, normalize_f0
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
@@ -293,10 +294,9 @@ class Trainer:
                 _, mu_fake, log_sigma_fake = self.bottleneck(feature)
                 fake = self.bottleneck_d(mu_fake, log_sigma_fake)
 
-                loss_bottleneck_d = (
-                    F.binary_cross_entropy(real, torch.ones_like(real))
-                    + F.binary_cross_entropy(fake, torch.zeros_like(fake))
-                ) * 0.1
+                loss_bottleneck_d = F.binary_cross_entropy(
+                    real, torch.ones_like(real)
+                ) + F.binary_cross_entropy(fake, torch.zeros_like(fake))
 
                 loss_disc_all = loss_disc_s + loss_disc_f + loss_bottleneck_d
 
