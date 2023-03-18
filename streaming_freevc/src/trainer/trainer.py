@@ -11,7 +11,7 @@ from src.model.hifi_gan_generator import Generator
 from src.model.posterior_encoder import PosteriorEncoder
 from src.model.residual_coupling_block import ResidualCouplingBlock
 from src.model.f0_decoder import F0Decoder
-from src.model.bottleneck import Bottleneck
+from src.model.bottleneck import Bottleneck, BottleneckDiscriminator
 from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 from src.model.multi_scale_discriminator import MultiScaleDiscriminator
 from src.module.log_melspectrogram import log_melspectrogram
@@ -98,6 +98,7 @@ class Trainer:
             power=False,
             elim_0th=True,
         ).to(self.device)
+        self.bottleneck_d = BottleneckDiscriminator().to(self.device)
 
         # self.f0_decoder_compiled = torch.compile(self.f0_decoder)
         # self.bottleneck_compiled = torch.compile(self.bottleneck)
@@ -125,6 +126,18 @@ class Trainer:
             betas=(0.5, 0.9),
             eps=1e-9,
         )
+        self.optimizer_bottleneck_g = optim.AdamW(
+            list(self.bottleneck.parameters()),
+            lr=0.00025,
+            betas=(0.9, 0.99),
+            eps=1e-9,
+        )
+        self.optimizer_bottleneck_d = optim.AdamW(
+            list(self.bottleneck_d.parameters()),
+            lr=0.00025,
+            betas=(0.9, 0.99),
+            eps=1e-9,
+        )
 
         if exp_name is not None:
             self.load_ckpt()
@@ -133,9 +146,11 @@ class Trainer:
             "train/params",
             f"g_lr: {0.00025}  \n"
             + f"d_lr: {0.00025}  \n"
+            + f"bottleneck_g_lr: {0.00025}  \n"
+            + f"bottleneck_d_lr: {0.00025}  \n"
             + f"sr-range: {40}-{100}  \n"
             + f"sr-enabled: {True}  \n"
-            + f"bottleneck: {64}, {256}",
+            + f"bottleneck: {24}, {256}",
             0,
         )
 
@@ -150,8 +165,11 @@ class Trainer:
         self.posterior_encoder.load_state_dict(ckpt["posterior_encoder"])
         self.mpd.load_state_dict(ckpt["mpd"])
         self.msd.load_state_dict(ckpt["msd"])
+        self.bottleneck_d.load_state_dict(ckpt["bottleneck_d"])
         self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
         self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
+        self.optimizer_bottleneck_g.load_state_dict(ckpt["optimizer_bottleneck_g"])
+        self.optimizer_bottleneck_d.load_state_dict(ckpt["optimizer_bottleneck_d"])
         self.step = ckpt["step"]
 
         print(f"Load checkpoint from {ckpt_path}")
@@ -165,8 +183,11 @@ class Trainer:
             "posterior_encoder": self.posterior_encoder.state_dict(),
             "mpd": self.mpd.state_dict(),
             "msd": self.msd.state_dict(),
-            "optimizer_d": self.optimizer_d.state_dict(),
+            "bottleneck_d": self.bottleneck_d.state_dict(),
             "optimizer_g": self.optimizer_g.state_dict(),
+            "optimizer_d": self.optimizer_d.state_dict(),
+            "optimizer_bottleneck_g": self.optimizer_bottleneck_g.state_dict(),
+            "optimizer_bottleneck_d": self.optimizer_bottleneck_d.state_dict(),
             "step": self.step,
         }
 
@@ -210,6 +231,8 @@ class Trainer:
         f0_losses = []
         reg_losses = []
         mel_errors = []
+        bottleneck_d_losses = []
+        bottleneck_g_losses = []
 
         def kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2):
             kl = log_sigma_2 - log_sigma_1 - 0.5
@@ -218,13 +241,14 @@ class Trainer:
 
         while self.step < self.max_step:
 
-            for audio, aug_audio in self.data_loader:
+            for audio, aug_audio, fake_audio in self.data_loader:
                 audio = audio.to(self.device)
                 aug_audio = aug_audio.to(self.device)
+                fake_audio = fake_audio.to(self.device)
 
-                audio_f0 = compute_f0(audio.squeeze(1))
+                audio_f0 = compute_f0(audio)
                 # audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
-                audio_lf0 = torch.log10(1.0 + audio_f0)
+                audio_lf0 = torch.log10(audio_f0 + 1)
 
                 outputs = self.wavlm(aug_audio)
                 feature = outputs["extract_features"]
@@ -246,26 +270,30 @@ class Trainer:
                 # )
                 pred_audio_f0_aug = torch.pow(10, pred_audio_lf0_aug) - 1
 
-                spec = self.spec(audio.squeeze(1))[:, :, :-1]
+                spec = self.spec(audio)[:, :, :-1]
                 z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
                 z_p = self.flow(z)
 
                 audio_hat = self.vocoder(z, audio_f0)
 
-                mel = log_melspectrogram(self.spec(audio)[:, :, :-1])
+                mel = log_melspectrogram(self.spec(audio.unsqueeze(1))[:, :, :-1])
                 mel_hat = log_melspectrogram(self.spec(audio_hat)[:, :, :-1])
 
                 # discrimator step
                 self.optimizer_d.zero_grad()
 
                 ## MPD
-                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(audio, audio_hat.detach())
+                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(
+                    audio.unsqueeze(1), audio_hat.detach()
+                )
                 loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(
                     y_df_hat_r, y_df_hat_g
                 )
 
                 ## MSD
-                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(audio, audio_hat.detach())
+                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(
+                    audio.unsqueeze(1), audio_hat.detach()
+                )
                 loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
                     y_ds_hat_r, y_ds_hat_g
                 )
@@ -282,8 +310,12 @@ class Trainer:
                 loss_mel = F.l1_loss(mel, mel_hat) * 45
 
                 ## GAN Loss
-                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(audio, audio_hat)
-                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(audio, audio_hat)
+                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(
+                    audio.unsqueeze(1), audio_hat
+                )
+                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(
+                    audio.unsqueeze(1), audio_hat
+                )
                 # loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
                 # loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
                 loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
@@ -319,6 +351,41 @@ class Trainer:
                 )
                 self.optimizer_g.step()
 
+                # bottleneck gan step
+
+                ## discriminator step
+                outputs = self.wavlm(audio)
+                feature = outputs["extract_features"]
+                _, mu_real, log_sigma_real = self.bottleneck(feature)
+                real = self.bottleneck_d(mu_real, log_sigma_real)
+
+                outputs = self.wavlm(fake_audio)
+                feature = outputs["extract_features"]
+                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
+                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
+
+                loss_bottleneck_d = F.binary_cross_entropy(
+                    real, torch.ones_like(real)
+                ) + F.binary_cross_entropy(fake, torch.zeros_like(fake))
+
+                self.optimizer_bottleneck_d.zero_grad()
+                loss_bottleneck_d.backward()
+                self.optimizer_bottleneck_d.step()
+
+                ## generator step
+                outputs = self.wavlm(fake_audio)
+                feature = outputs["extract_features"]
+                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
+
+                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
+
+                loss_bottleneck_g = F.binary_cross_entropy(fake, torch.ones_like(fake))
+
+                self.optimizer_bottleneck_g.zero_grad()
+                loss_bottleneck_g.backward()
+                self.optimizer_bottleneck_g.step()
+
+                # losses
                 d_losses.append(loss_disc_all.item())
                 g_losses.append(loss_gen_all.item())
                 d_s_losses.append(loss_disc_s.item())
@@ -331,6 +398,8 @@ class Trainer:
                 kl_losses.append(loss_kl.item())
                 f0_losses.append(loss_f0.item())
                 reg_losses.append(loss_reg.item())
+                bottleneck_d_losses.append(loss_bottleneck_d.item())
+                bottleneck_g_losses.append(loss_bottleneck_g.item())
 
                 # ロギング
                 if self.step % self.progress_step == 0:
@@ -389,6 +458,16 @@ class Trainer:
                     self.log.add_scalar(
                         "train/loss/g/reg", sum(reg_losses) / len(reg_losses), self.step
                     )
+                    self.log.add_scalar(
+                        "train/loss/bottleneck_d",
+                        sum(bottleneck_d_losses) / len(bottleneck_d_losses),
+                        self.step,
+                    )
+                    self.log.add_scalar(
+                        "train/loss/bottleneck_g",
+                        sum(bottleneck_g_losses) / len(bottleneck_g_losses),
+                        self.step,
+                    )
                     # reset losses
                     d_losses = []
                     g_losses = []
@@ -405,6 +484,8 @@ class Trainer:
                     f0_losses = []
                     reg_losses = []
                     mel_errors = []
+                    bottleneck_d_losses = []
+                    bottleneck_g_losses = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
                 del audio, aug_audio, outputs, feature, mu_1, log_sigma_1, spec, z
@@ -503,7 +584,7 @@ class Trainer:
                 f0 = compute_f0(y)
 
                 # lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
-                lf0 = torch.log10(1.0 + f0)
+                lf0 = torch.log10(f0 + 1)
                 norm_lf0 = normalize_f0(lf0)
                 pred_lf0 = self.f0_decoder(z, norm_lf0)
                 # pred_f0 = 700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1)
@@ -571,7 +652,7 @@ class Trainer:
                     # pred_f0 = self.f0_decoder(z, norm_f0)[:, -4:]
 
                     # lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
-                    lf0 = torch.log10(1.0 + f0)
+                    lf0 = torch.log10(f0 + 1)
                     norm_lf0 = normalize_f0(lf0)
                     pred_lf0 = self.f0_decoder(z, norm_lf0)
                     # pred_f0 = (700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1))[:, -4:]

@@ -1,12 +1,14 @@
 import json
 import pathlib
 import random
+import itertools
 
 import torch
 import torch.nn.functional as F
 import torchvision.transforms
 import torchvision.transforms.functional
 import torchaudio
+from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from src.hifigan.models import Generator
 
@@ -98,7 +100,13 @@ class VoiceDataset(IterableDataset):
         vocoder.remove_weight_norm()
         self.vocoder = vocoder.cuda()
 
+        self.dataset = load_dataset(  # type: ignore
+            "reazon-research/reazonspeech", "medium", streaming=True
+        )["train"]
+
     def __iter__(self):
+        dataset_iter = itertools.cycle(iter(self.dataset))
+
         for item in self.file_list:
             audio, sr = torchaudio.load(item)
             audio = torchaudio.functional.resample(audio, sr, 16000)
@@ -184,7 +192,25 @@ class VoiceDataset(IterableDataset):
                 aug_audio = torchaudio.functional.resample(aug_audio, 22050, 16000)
                 aug_audio = aug_audio.squeeze().cpu()
 
-            yield clip_audio, aug_audio
+            ## reazon speechからfakeの音声を作る
+            data = next(dataset_iter)
+            fake_audio = torch.from_numpy(data["audio"]["array"]).to(
+                dtype=torch.float32
+            )
+            fake_audio = torchaudio.transforms.Resample(
+                data["audio"]["sampling_rate"], 16000
+            )(fake_audio).unsqueeze(0)
+
+            start = random.randint(0, max(0, fake_audio.shape[1] - AUDIO_LENGTH))
+            clip_fake_audio = fake_audio[:, start : start + AUDIO_LENGTH]
+            if clip_fake_audio.shape[1] < AUDIO_LENGTH:
+                clip_fake_audio = F.pad(
+                    clip_fake_audio,
+                    (0, AUDIO_LENGTH - clip_fake_audio.shape[1]),
+                    "constant",
+                )
+
+            yield clip_audio.squeeze(0), aug_audio, clip_fake_audio.squeeze(0)
 
 
 class ShuffleDataset(torch.utils.data.IterableDataset):
