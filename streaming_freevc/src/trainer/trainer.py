@@ -121,21 +121,11 @@ class Trainer:
             eps=1e-9,
         )
         self.optimizer_d = optim.AdamW(
-            list(self.mpd.parameters()) + list(self.msd.parameters()),
+            list(self.mpd.parameters())
+            + list(self.msd.parameters())
+            + list(self.bottleneck_d.parameters()),
             lr=0.00025,
             betas=(0.5, 0.9),
-            eps=1e-9,
-        )
-        self.optimizer_bottleneck_g = optim.AdamW(
-            list(self.bottleneck.parameters()),
-            lr=0.00025,
-            betas=(0.9, 0.99),
-            eps=1e-9,
-        )
-        self.optimizer_bottleneck_d = optim.AdamW(
-            list(self.bottleneck_d.parameters()),
-            lr=0.00025,
-            betas=(0.9, 0.99),
             eps=1e-9,
         )
 
@@ -146,8 +136,6 @@ class Trainer:
             "train/params",
             f"g_lr: {0.00025}  \n"
             + f"d_lr: {0.00025}  \n"
-            + f"bottleneck_g_lr: {0.00025}  \n"
-            + f"bottleneck_d_lr: {0.00025}  \n"
             + f"sr-range: {40}-{100}  \n"
             + f"sr-enabled: {True}  \n"
             + f"bottleneck: {24}, {256}",
@@ -168,8 +156,6 @@ class Trainer:
         self.bottleneck_d.load_state_dict(ckpt["bottleneck_d"])
         self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
         self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
-        self.optimizer_bottleneck_g.load_state_dict(ckpt["optimizer_bottleneck_g"])
-        self.optimizer_bottleneck_d.load_state_dict(ckpt["optimizer_bottleneck_d"])
         self.step = ckpt["step"]
 
         print(f"Load checkpoint from {ckpt_path}")
@@ -186,8 +172,6 @@ class Trainer:
             "bottleneck_d": self.bottleneck_d.state_dict(),
             "optimizer_g": self.optimizer_g.state_dict(),
             "optimizer_d": self.optimizer_d.state_dict(),
-            "optimizer_bottleneck_g": self.optimizer_bottleneck_g.state_dict(),
-            "optimizer_bottleneck_d": self.optimizer_bottleneck_d.state_dict(),
             "step": self.step,
         }
 
@@ -298,7 +282,23 @@ class Trainer:
                     y_ds_hat_r, y_ds_hat_g
                 )
 
-                loss_disc_all = loss_disc_s + loss_disc_f
+                # bottleneck gan discriminator
+                outputs = self.wavlm(audio)
+                feature = outputs["extract_features"]
+                _, mu_real, log_sigma_real = self.bottleneck(feature)
+                real = self.bottleneck_d(mu_real, log_sigma_real)
+
+                outputs = self.wavlm(fake_audio)
+                feature = outputs["extract_features"]
+                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
+                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
+
+                loss_bottleneck_d = (
+                    F.binary_cross_entropy(real, torch.ones_like(real))
+                    + F.binary_cross_entropy(fake, torch.zeros_like(fake))
+                ) * 0.1
+
+                loss_disc_all = loss_disc_s + loss_disc_f + loss_bottleneck_d
 
                 loss_disc_all.backward()
                 self.optimizer_d.step()
@@ -330,6 +330,17 @@ class Trainer:
                 ## reg loss
                 loss_reg = self.reg_loss(audio_hat, audio, audio_f0) * 2
 
+                # bottleneck gan generator
+                outputs = self.wavlm(fake_audio)
+                feature = outputs["extract_features"]
+                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
+
+                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
+
+                loss_bottleneck_g = (
+                    F.binary_cross_entropy(fake, torch.ones_like(fake)) * 0.1
+                )
+
                 loss_gen_all = (
                     loss_gen_s
                     + loss_gen_f
@@ -339,6 +350,7 @@ class Trainer:
                     + loss_kl
                     + loss_f0
                     + loss_reg
+                    + loss_bottleneck_g
                 )
 
                 loss_gen_all.backward()
@@ -350,36 +362,6 @@ class Trainer:
                     10000.0,
                 )
                 self.optimizer_g.step()
-
-                # bottleneck gan step
-
-                ## discriminator step
-                outputs = self.wavlm(audio)
-                feature = outputs["extract_features"]
-                _, mu_real, log_sigma_real = self.bottleneck(feature)
-                real = self.bottleneck_d(mu_real, log_sigma_real)
-
-                outputs = self.wavlm(fake_audio)
-                feature = outputs["extract_features"]
-                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
-                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
-
-                loss_bottleneck_d = F.binary_cross_entropy(
-                    real, torch.ones_like(real)
-                ) + F.binary_cross_entropy(fake, torch.zeros_like(fake))
-
-                self.optimizer_bottleneck_d.zero_grad()
-                loss_bottleneck_d.backward()
-                self.optimizer_bottleneck_d.step()
-
-                ## generator step
-                outputs = self.wavlm(fake_audio)
-                feature = outputs["extract_features"]
-                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
-
-                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
-
-                loss_bottleneck_g = F.binary_cross_entropy(fake, torch.ones_like(fake))
 
                 self.optimizer_bottleneck_g.zero_grad()
                 loss_bottleneck_g.backward()
