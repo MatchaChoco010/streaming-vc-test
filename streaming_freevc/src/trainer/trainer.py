@@ -7,14 +7,20 @@ import torch.nn.functional as F
 import torchaudio
 
 from src.data.data_loader import load_data
+
 # from src.model.hifi_gan_generator import Generator
 from src.model.posterior_encoder import PosteriorEncoder
 from src.model.residual_coupling_block import ResidualCouplingBlock
 from src.model.f0_decoder import F0Decoder
 from src.model.bottleneck import Bottleneck, BottleneckDiscriminator
+
 # from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 # from src.model.multi_scale_discriminator import MultiScaleDiscriminator
-from src.model.vdecoder import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator
+from src.model.vdecoder import (
+    Generator,
+    MultiPeriodDiscriminator,
+    MultiScaleDiscriminator,
+)
 from src.module.log_melspectrogram import log_melspectrogram
 from src.module.f0_utils import compute_f0, normalize_f0
 from src.trainer.loss import discriminator_loss, feature_loss, generator_loss
@@ -216,8 +222,8 @@ class Trainer:
         f0_losses = []
         reg_losses = []
         mel_errors = []
-        bottleneck_d_losses = []
-        bottleneck_g_losses = []
+        # bottleneck_d_losses = []
+        # bottleneck_g_losses = []
 
         def kl_loss(mu_1, log_sigma_1, mu_2, log_sigma_2):
             kl = log_sigma_2 - log_sigma_1 - 0.5
@@ -226,10 +232,11 @@ class Trainer:
 
         while self.step < self.max_step:
 
-            for audio, aug_audio, fake_audio in self.data_loader:
+            # for audio, aug_audio, fake_audio in self.data_loader:
+            for audio, aug_audio in self.data_loader:
                 audio = audio.to(self.device)
                 aug_audio = aug_audio.to(self.device)
-                fake_audio = fake_audio.to(self.device)
+                # fake_audio = fake_audio.to(self.device)
 
                 audio_f0 = compute_f0(audio)
                 # audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
@@ -283,22 +290,23 @@ class Trainer:
                     y_ds_hat_r, y_ds_hat_g
                 )
 
-                # bottleneck gan discriminator
-                outputs = self.wavlm(audio)
-                feature = outputs["extract_features"]
-                _, mu_real, log_sigma_real = self.bottleneck(feature)
-                real = self.bottleneck_d(mu_real, log_sigma_real)
+                # # bottleneck gan discriminator
+                # outputs = self.wavlm(audio)
+                # feature = outputs["extract_features"]
+                # _, mu_real, log_sigma_real = self.bottleneck(feature)
+                # real = self.bottleneck_d(mu_real, log_sigma_real)
 
-                outputs = self.wavlm(fake_audio)
-                feature = outputs["extract_features"]
-                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
-                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
+                # outputs = self.wavlm(fake_audio)
+                # feature = outputs["extract_features"]
+                # _, mu_fake, log_sigma_fake = self.bottleneck(feature)
+                # fake = self.bottleneck_d(mu_fake, log_sigma_fake)
 
-                loss_bottleneck_d = F.binary_cross_entropy(
-                    real, torch.ones_like(real)
-                ) + F.binary_cross_entropy(fake, torch.zeros_like(fake))
+                # loss_bottleneck_d = F.binary_cross_entropy(
+                #     real, torch.ones_like(real)
+                # ) + F.binary_cross_entropy(fake, torch.zeros_like(fake))
 
-                loss_disc_all = loss_disc_s + loss_disc_f + loss_bottleneck_d
+                # loss_disc_all = loss_disc_s + loss_disc_f + loss_bottleneck_d
+                loss_disc_all = loss_disc_s + loss_disc_f
 
                 loss_disc_all.backward()
                 self.optimizer_d.step()
@@ -330,16 +338,16 @@ class Trainer:
                 ## reg loss
                 loss_reg = self.reg_loss(audio_hat, audio, audio_f0) * 2
 
-                # bottleneck gan generator
-                outputs = self.wavlm(fake_audio)
-                feature = outputs["extract_features"]
-                _, mu_fake, log_sigma_fake = self.bottleneck(feature)
+                # # bottleneck gan generator
+                # outputs = self.wavlm(fake_audio)
+                # feature = outputs["extract_features"]
+                # _, mu_fake, log_sigma_fake = self.bottleneck(feature)
 
-                fake = self.bottleneck_d(mu_fake, log_sigma_fake)
+                # fake = self.bottleneck_d(mu_fake, log_sigma_fake)
 
-                loss_bottleneck_g = (
-                    F.binary_cross_entropy(fake, torch.ones_like(fake)) * 0.1
-                )
+                # loss_bottleneck_g = (
+                #     F.binary_cross_entropy(fake, torch.ones_like(fake)) * 0.1
+                # )
 
                 loss_gen_all = (
                     loss_gen_s
@@ -350,7 +358,7 @@ class Trainer:
                     + loss_kl
                     + loss_f0
                     + loss_reg
-                    + loss_bottleneck_g
+                    # + loss_bottleneck_g
                 )
 
                 loss_gen_all.backward()
@@ -376,8 +384,8 @@ class Trainer:
                 kl_losses.append(loss_kl.item())
                 f0_losses.append(loss_f0.item())
                 reg_losses.append(loss_reg.item())
-                bottleneck_d_losses.append(loss_bottleneck_d.item())
-                bottleneck_g_losses.append(loss_bottleneck_g.item())
+                # bottleneck_d_losses.append(loss_bottleneck_d.item())
+                # bottleneck_g_losses.append(loss_bottleneck_g.item())
 
                 # ロギング
                 if self.step % self.progress_step == 0:
@@ -436,16 +444,16 @@ class Trainer:
                     self.log.add_scalar(
                         "train/loss/g/reg", sum(reg_losses) / len(reg_losses), self.step
                     )
-                    self.log.add_scalar(
-                        "train/loss/bottleneck_d",
-                        sum(bottleneck_d_losses) / len(bottleneck_d_losses),
-                        self.step,
-                    )
-                    self.log.add_scalar(
-                        "train/loss/bottleneck_g",
-                        sum(bottleneck_g_losses) / len(bottleneck_g_losses),
-                        self.step,
-                    )
+                    # self.log.add_scalar(
+                    #     "train/loss/bottleneck_d",
+                    #     sum(bottleneck_d_losses) / len(bottleneck_d_losses),
+                    #     self.step,
+                    # )
+                    # self.log.add_scalar(
+                    #     "train/loss/bottleneck_g",
+                    #     sum(bottleneck_g_losses) / len(bottleneck_g_losses),
+                    #     self.step,
+                    # )
                     # reset losses
                     d_losses = []
                     g_losses = []
@@ -462,8 +470,8 @@ class Trainer:
                     f0_losses = []
                     reg_losses = []
                     mel_errors = []
-                    bottleneck_d_losses = []
-                    bottleneck_g_losses = []
+                    # bottleneck_d_losses = []
+                    # bottleneck_g_losses = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
                 del audio, aug_audio, outputs, feature, mu_1, log_sigma_1, spec, z
