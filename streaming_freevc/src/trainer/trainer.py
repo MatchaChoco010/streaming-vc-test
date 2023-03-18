@@ -138,7 +138,7 @@ class Trainer:
             + f"d_lr: {0.00025}  \n"
             + f"sr-range: {40}-{100}  \n"
             + f"sr-enabled: {True}  \n"
-            + f"bottleneck: {24}, {256}",
+            + f"bottleneck: {32}, {256}",
             0,
         )
 
@@ -362,10 +362,6 @@ class Trainer:
                     10000.0,
                 )
                 self.optimizer_g.step()
-
-                self.optimizer_bottleneck_g.zero_grad()
-                loss_bottleneck_g.backward()
-                self.optimizer_bottleneck_g.step()
 
                 # losses
                 d_losses.append(loss_disc_all.item())

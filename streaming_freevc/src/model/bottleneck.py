@@ -19,11 +19,11 @@ class Bottleneck(nn.Module):
             nn.LeakyReLU(),
             FFTBlockST(1024, 1024),
             nn.LeakyReLU(),
-            nn.Linear(1024, 24),
+            nn.Linear(1024, 32),
         )
-        self.bn = nn.BatchNorm1d(24)
-        self.proj_mu = nn.Conv1d(24, 256, 1)
-        self.proj_log_sigma = nn.Conv1d(24, 256, 1)
+        self.bn = nn.BatchNorm1d(32)
+        self.proj_mu = nn.Conv1d(32, 256, 1)
+        self.proj_log_sigma = nn.Conv1d(32, 256, 1)
 
     def forward(
         self, xs: torch.Tensor
