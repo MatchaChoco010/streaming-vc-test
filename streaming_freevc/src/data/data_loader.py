@@ -14,7 +14,8 @@ from torch.utils.data import DataLoader, IterableDataset
 
 # from src.hifigan.models import Generator
 
-AUDIO_LENGTH = 16000 * 2
+# AUDIO_LENGTH = 16000 * 2
+AUDIO_LENGTH = 10240
 
 
 mel_basis = {}

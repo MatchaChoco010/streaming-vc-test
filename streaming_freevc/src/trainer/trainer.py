@@ -13,7 +13,7 @@ from src.data.data_loader import load_data
 from src.model.posterior_encoder import PosteriorEncoder
 from src.model.residual_coupling_block import ResidualCouplingBlock
 from src.model.f0_decoder import F0Decoder
-from src.model.bottleneck import Bottleneck, BottleneckDiscriminator
+from src.model.bottleneck import BottleneckPre, BottleneckEncoder
 
 # from src.model.multi_period_discriminator import MultiPeriodDiscriminator
 # from src.model.multi_scale_discriminator import MultiScaleDiscriminator
@@ -31,28 +31,28 @@ from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModel
 
 
-# f0_bin = 256
-# f0_max = 1100.0
-# f0_min = 50.0
-# f0_mel_min = 1127 * np.log(1 + f0_min / 700)
-# f0_mel_max = 1127 * np.log(1 + f0_max / 700)
+f0_bin = 256
+f0_max = 1100.0
+f0_min = 50.0
+f0_mel_min = 1127 * np.log(1 + f0_min / 700)
+f0_mel_max = 1127 * np.log(1 + f0_max / 700)
 
 
-# def f0_to_coarse(f0: torch.Tensor | float):
-#     is_torch = isinstance(f0, torch.Tensor)
-#     f0_mel = 1127 * (1 + f0 / 700).log() if is_torch else 1127 * np.log(1 + f0 / 700)
-#     f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - f0_mel_min) * (f0_bin - 2) / (
-#         f0_mel_max - f0_mel_min
-#     ) + 1
+def f0_to_coarse(f0: torch.Tensor | float):
+    is_torch = isinstance(f0, torch.Tensor)
+    f0_mel = 1127 * (1 + f0 / 700).log() if is_torch else 1127 * np.log(1 + f0 / 700)
+    f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - f0_mel_min) * (f0_bin - 2) / (
+        f0_mel_max - f0_mel_min
+    ) + 1
 
-#     f0_mel[f0_mel <= 1] = 1
-#     f0_mel[f0_mel > f0_bin - 1] = f0_bin - 1
-#     f0_coarse = (f0_mel + 0.5).long() if is_torch else np.rint(f0_mel).astype(np.int)
-#     assert f0_coarse.max() <= 255 and f0_coarse.min() >= 1, (
-#         f0_coarse.max(),
-#         f0_coarse.min(),
-#     )
-#     return f0_coarse
+    f0_mel[f0_mel <= 1] = 1
+    f0_mel[f0_mel > f0_bin - 1] = f0_bin - 1
+    f0_coarse = (f0_mel + 0.5).long() if is_torch else np.rint(f0_mel).astype(np.int)
+    assert f0_coarse.max() <= 255 and f0_coarse.min() >= 1, (
+        f0_coarse.max(),
+        f0_coarse.min(),
+    )
+    return f0_coarse
 
 
 class Trainer:
@@ -112,7 +112,8 @@ class Trainer:
         ).to(self.device)
 
         self.f0_decoder = F0Decoder().to(self.device)
-        self.bottleneck = Bottleneck().to(self.device)
+        self.bottleneck_pre = BottleneckPre().to(self.device)
+        self.bottleneck_enc = BottleneckEncoder().to(self.device)
         self.vocoder = Generator().to(self.device)
         self.flow = ResidualCouplingBlock().to(self.device)
         self.posterior_encoder = PosteriorEncoder().to(self.device)
@@ -144,7 +145,8 @@ class Trainer:
 
         self.optimizer_g = optim.AdamW(
             list(self.f0_decoder.parameters())
-            + list(self.bottleneck.parameters())
+            + list(self.bottleneck_pre.parameters())
+            + list(self.bottleneck_enc.parameters())
             + list(self.vocoder.parameters())
             + list(self.flow.parameters())
             + list(self.posterior_encoder.parameters()),
@@ -179,7 +181,8 @@ class Trainer:
         ckpt = torch.load(ckpt_path, map_location=self.device)
 
         self.f0_decoder.load_state_dict(ckpt["f0_decoder"])
-        self.bottleneck.load_state_dict(ckpt["bottleneck"])
+        self.bottleneck_pre.load_state_dict(ckpt["bottleneck_pre"])
+        self.bottleneck_enc.load_state_dict(ckpt["bottleneck_enc"])
         self.vocoder.load_state_dict(ckpt["vocoder"])
         self.flow.load_state_dict(ckpt["flow"])
         self.posterior_encoder.load_state_dict(ckpt["posterior_encoder"])
@@ -195,7 +198,8 @@ class Trainer:
     def save_ckpt(self):
         save_dict = {
             "f0_decoder": self.f0_decoder.state_dict(),
-            "bottleneck": self.bottleneck.state_dict(),
+            "bottleneck_pre": self.bottleneck_pre.state_dict(),
+            "bottleneck_enc": self.bottleneck_enc.state_dict(),
             "vocoder": self.vocoder.state_dict(),
             "flow": self.flow.state_dict(),
             "posterior_encoder": self.posterior_encoder.state_dict(),
@@ -276,16 +280,12 @@ class Trainer:
                 outputs = self.wavlm(audio, output_hidden_states=True)
                 # feature = outputs["extract_features"]
                 feature = outputs.hidden_states[9]
+                feature = F.pad(feature, (0, 0, 0, 1))
                 # z_tmp, mu_1, log_sigma_1 = self.bottleneck(
                 #     feature, f0_to_coarse(audio_f0[:, :-1])
                 # )
-                z_tmp, mu_1, log_sigma_1, pre = self.bottleneck(feature)
-                z_tmp, mu_1, log_sigma_1, pre = (
-                    F.pad(z_tmp, (0, 1)),
-                    F.pad(mu_1, (0, 1)),
-                    F.pad(log_sigma_1, (0, 1)),
-                    F.pad(pre, (0, 1)),
-                )
+
+                pre = self.bottleneck_pre(feature)
 
                 # audio_lf0_aug = 2595.0 * torch.log10(1.0 + audio_f0_aug / 700.0) / 500
                 # audio_lf0_aug = torch.log10(1.0 + audio_f0_aug)
@@ -300,14 +300,18 @@ class Trainer:
                     torch.pow(10, pred_audio_lf0_aug * 500 / 2595) - 1
                 )
 
+                z_tmp, mu_1, log_sigma_1 = self.bottleneck_enc(
+                    pre, f0_to_coarse(audio_f0)
+                )
+
                 spec = self.spec(audio)[:, :, :-1]
                 z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
                 z_p = self.flow(z)
 
                 audio_hat = self.vocoder(z, audio_f0)
 
-                mel = log_melspectrogram(self.spec(audio.unsqueeze(1))[:, :, :-1])
-                mel_hat = log_melspectrogram(self.spec(audio_hat)[:, :, :-1])
+                mel = log_melspectrogram(self.spec(audio.unsqueeze(1)))
+                mel_hat = log_melspectrogram(self.spec(audio_hat))
 
                 # discrimator step
                 self.optimizer_d.zero_grad()
@@ -402,7 +406,9 @@ class Trainer:
 
                 loss_gen_all.backward()
                 torch.nn.utils.clip_grad_value_(
-                    list(self.bottleneck.parameters())
+                    list(self.f0_decoder.parameters())
+                    + list(self.bottleneck_pre.parameters())
+                    + list(self.bottleneck_enc.parameters())
                     + list(self.vocoder.parameters())
                     + list(self.flow.parameters())
                     + list(self.posterior_encoder.parameters()),
@@ -539,7 +545,8 @@ class Trainer:
         self.log.close()
 
     def validate(self):
-        self.bottleneck.eval()
+        self.bottleneck_pre.eval()
+        self.bottleneck_enc.eval()
         self.flow.eval()
         self.vocoder.eval()
 
@@ -607,19 +614,17 @@ class Trainer:
                 outputs = self.wavlm(y, output_hidden_states=True)
                 feat = outputs.hidden_states[9]
 
+                pre = self.bottleneck_pre(feat)
+
                 f0 = compute_f0(y)
-
-                # z, mu, log_sigma = self.bottleneck(feat, f0_to_coarse(f0))
-                z, mu, log_sigma, pre = self.bottleneck(feat)
-
                 lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
-                # lf0 = torch.log10(f0 + 1)
                 norm_lf0 = normalize_f0(lf0)
                 pred_lf0 = self.f0_decoder(pre, norm_lf0)
                 pred_f0 = 700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1)
-                # pred_f0 = torch.pow(10, pred_lf0) - 1
-                # norm_f0 = normalize_f0(f0)
-                # pred_f0 = self.f0_decoder(z, norm_f0)
+
+                z, mu, log_sigma = self.bottleneck_enc(
+                    pre, f0_to_coarse(pred_f0), noise_scale=0.4
+                )
 
                 feat = self.flow.reverse(z)
                 audio_hat = self.vocoder(feat, pred_f0)
@@ -653,7 +658,7 @@ class Trainer:
                 feat_vocoder_history = torch.zeros((1, 192, vocoder_history_size)).to(
                     self.device
                 )
-                f0_history = torch.zeros((1, vocoder_history_size)).to(self.device)
+                f0_history = torch.zeros((1, history_size)).to(self.device)
 
                 # melを64msずつずらしながら食わせることでstreamingで生成する
                 audio_items = []
@@ -676,32 +681,29 @@ class Trainer:
                         :, -history_size:, :
                     ]
 
+                    pre = self.bottleneck_pre(feat_history)
+
                     f0 = compute_f0(audio_history)
-                    # norm_f0 = normalize_f0(f0)
-                    # pred_f0 = self.f0_decoder(z, norm_f0)[:, -4:]
-
-                    # z, _, _ = self.bottleneck(feat_history, f0_to_coarse(f0))
-                    z, _, _, pre = self.bottleneck(feat_history)
-                    feat = self.flow.reverse(z)[:, :, -4:]
-
                     lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
-                    # lf0 = torch.log10(f0 + 1)
                     norm_lf0 = normalize_f0(lf0)
                     pred_lf0 = self.f0_decoder(pre, norm_lf0)
                     pred_f0 = (700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1))[:, -4:]
-                    # pred_f0 = (torch.pow(10, pred_lf0) - 1)[:, -4:]
+                    f0_history = torch.cat([f0_history, pred_f0], dim=1)[
+                        :, -history_size:
+                    ]
+
+                    z, _, _ = self.bottleneck_enc(
+                        pre, f0_to_coarse(f0_history), noise_scale=0.4
+                    )
+                    feat = self.flow.reverse(z)[:, :, -4:]
 
                     feat_vocoder_history = torch.cat(
                         [feat_vocoder_history, feat], dim=2
                     )[:, :, -vocoder_history_size:]
 
-                    f0_history = torch.cat([f0_history, pred_f0], dim=1)[
-                        :, -vocoder_history_size:
-                    ]
-
-                    audio_hat = self.vocoder(feat_vocoder_history, f0_history)[
-                        :, :, -320 * 4 :
-                    ]
+                    audio_hat = self.vocoder(
+                        feat_vocoder_history, f0_history[:, -vocoder_history_size:]
+                    )[:, :, -320 * 4 :]
                     audio_items.append(audio_hat)
 
                     # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
@@ -719,6 +721,7 @@ class Trainer:
                 )
 
         # Resume training
-        self.bottleneck.train()
+        self.bottleneck_pre.train()
+        self.bottleneck_enc.train()
         self.flow.train()
         self.vocoder.train()
