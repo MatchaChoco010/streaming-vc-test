@@ -92,20 +92,20 @@ class Trainer:
         self.flow = ResidualCouplingBlock().to(self.device)
         self.posterior_encoder = PosteriorEncoder().to(self.device)
         self.mpd = MultiPeriodDiscriminator().to(self.device)
-        self.msd = MultiScaleDiscriminator().to(self.device)
-        self.reg_loss = ResidualLoss(
-            sample_rate=16000,
-            fft_size=2048,
-            hop_size=320,
-            f0_floor=50,
-            f0_ceil=1100,
-            n_mels=80,
-            fmin=0,
-            fmax=None,
-            power=False,
-            elim_0th=True,
-        ).to(self.device)
-        self.bottleneck_d = BottleneckDiscriminator().to(self.device)
+        # self.msd = MultiScaleDiscriminator().to(self.device)
+        # self.reg_loss = ResidualLoss(
+        #     sample_rate=16000,
+        #     fft_size=2048,
+        #     hop_size=320,
+        #     f0_floor=50,
+        #     f0_ceil=1100,
+        #     n_mels=80,
+        #     fmin=0,
+        #     fmax=None,
+        #     power=False,
+        #     elim_0th=True,
+        # ).to(self.device)
+        # self.bottleneck_d = BottleneckDiscriminator().to(self.device)
 
         # self.f0_decoder_compiled = torch.compile(self.f0_decoder)
         # self.bottleneck_compiled = torch.compile(self.bottleneck)
@@ -123,16 +123,16 @@ class Trainer:
             + list(self.vocoder.parameters())
             + list(self.flow.parameters())
             + list(self.posterior_encoder.parameters()),
-            lr=0.00025,
-            betas=(0.5, 0.9),
+            lr=0.0001,
+            betas=(0.8, 0.99),
             eps=1e-9,
         )
         self.optimizer_d = optim.AdamW(
-            list(self.mpd.parameters())
-            + list(self.msd.parameters())
-            + list(self.bottleneck_d.parameters()),
-            lr=0.00025,
-            betas=(0.5, 0.9),
+            list(self.mpd.parameters()),
+            # + list(self.msd.parameters())
+            # + list(self.bottleneck_d.parameters()),
+            lr=0.0001,
+            betas=(0.8, 0.99),
             eps=1e-9,
         )
 
@@ -141,8 +141,8 @@ class Trainer:
 
         self.log.add_text(
             "train/params",
-            f"g_lr: {0.00025}  \n"
-            + f"d_lr: {0.00025}  \n"
+            f"g_lr: {0.0001}  \n"
+            + f"d_lr: {0.0001}  \n"
             + f"sr-range: {40}-{100}  \n"
             + f"sr-enabled: {False}  \n"
             + f"bottleneck: {192}, {256}",
@@ -159,8 +159,8 @@ class Trainer:
         self.flow.load_state_dict(ckpt["flow"])
         self.posterior_encoder.load_state_dict(ckpt["posterior_encoder"])
         self.mpd.load_state_dict(ckpt["mpd"])
-        self.msd.load_state_dict(ckpt["msd"])
-        self.bottleneck_d.load_state_dict(ckpt["bottleneck_d"])
+        # self.msd.load_state_dict(ckpt["msd"])
+        # self.bottleneck_d.load_state_dict(ckpt["bottleneck_d"])
         self.optimizer_g.load_state_dict(ckpt["optimizer_g"])
         self.optimizer_d.load_state_dict(ckpt["optimizer_d"])
         self.step = ckpt["step"]
@@ -175,8 +175,8 @@ class Trainer:
             "flow": self.flow.state_dict(),
             "posterior_encoder": self.posterior_encoder.state_dict(),
             "mpd": self.mpd.state_dict(),
-            "msd": self.msd.state_dict(),
-            "bottleneck_d": self.bottleneck_d.state_dict(),
+            # "msd": self.msd.state_dict(),
+            # "bottleneck_d": self.bottleneck_d.state_dict(),
             "optimizer_g": self.optimizer_g.state_dict(),
             "optimizer_d": self.optimizer_d.state_dict(),
             "step": self.step,
@@ -211,16 +211,16 @@ class Trainer:
         d_losses = []
         g_losses = []
 
-        d_s_losses = []
+        # d_s_losses = []
         d_f_losses = []
-        gen_s_losses = []
+        # gen_s_losses = []
         gen_f_losses = []
         # fm_s_losses = []
-        # fm_f_losses = []
+        fm_f_losses = []
         mel_losses = []
         kl_losses = []
         f0_losses = []
-        reg_losses = []
+        # reg_losses = []
         mel_errors = []
         # bottleneck_d_losses = []
         # bottleneck_g_losses = []
@@ -288,13 +288,13 @@ class Trainer:
                     y_df_hat_r, y_df_hat_g
                 )
 
-                ## MSD
-                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(
-                    audio.unsqueeze(1), audio_hat.detach()
-                )
-                loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
-                    y_ds_hat_r, y_ds_hat_g
-                )
+                # ## MSD
+                # y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(
+                #     audio.unsqueeze(1), audio_hat.detach()
+                # )
+                # loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
+                #     y_ds_hat_r, y_ds_hat_g
+                # )
 
                 # # bottleneck gan discriminator
                 # outputs = self.wavlm(audio)
@@ -312,7 +312,8 @@ class Trainer:
                 # ) + F.binary_cross_entropy(fake, torch.zeros_like(fake))
 
                 # loss_disc_all = loss_disc_s + loss_disc_f + loss_bottleneck_d
-                loss_disc_all = loss_disc_s + loss_disc_f
+                # loss_disc_all = loss_disc_s + loss_disc_f
+                loss_disc_all = loss_disc_f
 
                 loss_disc_all.backward()
                 self.optimizer_d.step()
@@ -327,22 +328,22 @@ class Trainer:
                 y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(
                     audio.unsqueeze(1), audio_hat
                 )
-                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(
-                    audio.unsqueeze(1), audio_hat
-                )
-                # loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
+                # y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(
+                #     audio.unsqueeze(1), audio_hat
+                # )
+                loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
                 # loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
                 loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
-                loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
+                # loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
 
                 ## KL Loss
-                loss_kl = kl_loss(z_p, log_sigma_2, mu_1, log_sigma_1) * 3
+                loss_kl = kl_loss(z_p, log_sigma_2, mu_1, log_sigma_1) * 1.0
 
                 ## f0 Loss
                 loss_f0 = F.mse_loss(pred_audio_lf0_aug, audio_lf0)
 
-                ## reg loss
-                loss_reg = self.reg_loss(audio_hat, audio, audio_f0) * 2
+                # ## reg loss
+                # loss_reg = self.reg_loss(audio_hat, audio, audio_f0) * 2
 
                 # # bottleneck gan generator
                 # outputs = self.wavlm(fake_audio)
@@ -356,14 +357,14 @@ class Trainer:
                 # )
 
                 loss_gen_all = (
-                    loss_gen_s
-                    + loss_gen_f
+                    # loss_gen_s
+                    loss_gen_f
                     # + loss_fm_s
-                    # + loss_fm_f
+                    + loss_fm_f
                     + loss_mel
                     + loss_kl
                     + loss_f0
-                    + loss_reg
+                    # + loss_reg
                     # + loss_bottleneck_g
                 )
 
@@ -380,16 +381,16 @@ class Trainer:
                 # losses
                 d_losses.append(loss_disc_all.item())
                 g_losses.append(loss_gen_all.item())
-                d_s_losses.append(loss_disc_s.item())
+                # d_s_losses.append(loss_disc_s.item())
                 d_f_losses.append(loss_disc_f.item())
-                gen_s_losses.append(loss_gen_s.item())
+                # gen_s_losses.append(loss_gen_s.item())
                 gen_f_losses.append(loss_gen_f.item())
                 # fm_s_losses.append(loss_fm_s.item())
-                # fm_f_losses.append(loss_fm_f.item())
+                fm_f_losses.append(loss_fm_f.item())
                 mel_losses.append(loss_mel.item())
                 kl_losses.append(loss_kl.item())
                 f0_losses.append(loss_f0.item())
-                reg_losses.append(loss_reg.item())
+                # reg_losses.append(loss_reg.item())
                 # bottleneck_d_losses.append(loss_bottleneck_d.item())
                 # bottleneck_g_losses.append(loss_bottleneck_g.item())
 
@@ -412,17 +413,17 @@ class Trainer:
                         "train/mel_error", sum(mel_errors) / len(mel_errors), self.step
                     )
 
-                    self.log.add_scalar(
-                        "train/loss/d/d_s", sum(d_s_losses) / len(d_s_losses), self.step
-                    )
+                    # self.log.add_scalar(
+                    #     "train/loss/d/d_s", sum(d_s_losses) / len(d_s_losses), self.step
+                    # )
                     self.log.add_scalar(
                         "train/loss/d/d_f", sum(d_f_losses) / len(d_f_losses), self.step
                     )
-                    self.log.add_scalar(
-                        "train/loss/g/gen_s",
-                        sum(gen_s_losses) / len(gen_s_losses),
-                        self.step,
-                    )
+                    # self.log.add_scalar(
+                    #     "train/loss/g/gen_s",
+                    #     sum(gen_s_losses) / len(gen_s_losses),
+                    #     self.step,
+                    # )
                     self.log.add_scalar(
                         "train/loss/g/gen_f",
                         sum(gen_f_losses) / len(gen_f_losses),
@@ -433,11 +434,11 @@ class Trainer:
                     #     sum(fm_s_losses) / len(fm_s_losses),
                     #     self.step,
                     # )
-                    # self.log.add_scalar(
-                    #     "train/loss/g/fm_f",
-                    #     sum(fm_f_losses) / len(fm_f_losses),
-                    #     self.step,
-                    # )
+                    self.log.add_scalar(
+                        "train/loss/g/fm_f",
+                        sum(fm_f_losses) / len(fm_f_losses),
+                        self.step,
+                    )
                     self.log.add_scalar(
                         "train/loss/g/mel", sum(mel_losses) / len(mel_losses), self.step
                     )
@@ -447,9 +448,9 @@ class Trainer:
                     self.log.add_scalar(
                         "train/loss/g/f0", sum(f0_losses) / len(f0_losses), self.step
                     )
-                    self.log.add_scalar(
-                        "train/loss/g/reg", sum(reg_losses) / len(reg_losses), self.step
-                    )
+                    # self.log.add_scalar(
+                    #     "train/loss/g/reg", sum(reg_losses) / len(reg_losses), self.step
+                    # )
                     # self.log.add_scalar(
                     #     "train/loss/bottleneck_d",
                     #     sum(bottleneck_d_losses) / len(bottleneck_d_losses),
@@ -467,29 +468,27 @@ class Trainer:
 
                     d_s_losses = []
                     d_f_losses = []
-                    gen_s_losses = []
+                    # gen_s_losses = []
                     gen_f_losses = []
                     # fm_s_losses = []
-                    # fm_f_losses = []
+                    fm_f_losses = []
                     mel_losses = []
                     kl_losses = []
                     f0_losses = []
-                    reg_losses = []
+                    # reg_losses = []
                     mel_errors = []
                     # bottleneck_d_losses = []
                     # bottleneck_g_losses = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
-                # del audio, aug_audio, outputs, feature, mu_1, log_sigma_1, spec, z
                 del audio, outputs, feature, mu_1, log_sigma_1, spec, z
                 del mu_2, log_sigma_2, z_p, audio_hat, mel, mel_hat
-                del y_ds_hat_g, y_df_hat_g
+                del y_df_hat_g
                 del loss_disc_f, losses_disc_f_r, losses_disc_f_g
-                del loss_disc_s, losses_disc_s_r, losses_disc_s_g
                 del loss_disc_all
-                del loss_mel, fmap_f_r, fmap_f_g, fmap_s_r, fmap_s_g
-                # del loss_fm_f, loss_fm_s
-                del loss_gen_f, losses_gen_f, loss_gen_s, losses_gen_s
+                del loss_mel, fmap_f_r, fmap_f_g
+                del loss_fm_f
+                del loss_gen_f, losses_gen_f
                 del loss_kl, loss_gen_all
                 torch.cuda.empty_cache()
 
