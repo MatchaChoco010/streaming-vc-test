@@ -2,6 +2,7 @@ import os
 import pathlib
 from datetime import datetime
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torchaudio
@@ -28,6 +29,30 @@ from src.trainer.reg_loss import ResidualLoss
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModel
+
+
+f0_bin = 256
+f0_max = 1100.0
+f0_min = 50.0
+f0_mel_min = 1127 * np.log(1 + f0_min / 700)
+f0_mel_max = 1127 * np.log(1 + f0_max / 700)
+
+
+def f0_to_coarse(f0: torch.Tensor | float):
+    is_torch = isinstance(f0, torch.Tensor)
+    f0_mel = 1127 * (1 + f0 / 700).log() if is_torch else 1127 * np.log(1 + f0 / 700)
+    f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - f0_mel_min) * (f0_bin - 2) / (
+        f0_mel_max - f0_mel_min
+    ) + 1
+
+    f0_mel[f0_mel <= 1] = 1
+    f0_mel[f0_mel > f0_bin - 1] = f0_bin - 1
+    f0_coarse = (f0_mel + 0.5).long() if is_torch else np.rint(f0_mel).astype(np.int)
+    assert f0_coarse.max() <= 255 and f0_coarse.min() >= 1, (
+        f0_coarse.max(),
+        f0_coarse.min(),
+    )
+    return f0_coarse
 
 
 class Trainer:
@@ -242,17 +267,23 @@ class Trainer:
                 audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
                 # audio_lf0 = torch.log10(audio_f0 + 1)
 
+                # audio_f0_aug = compute_f0(aug_audio)
+
+                # pred_audio_f0_aug = torch.pow(10, pred_audio_lf0_aug) - 1
+
                 # outputs = self.wavlm(aug_audio)
-                outputs = self.wavlm(audio)
-                feature = outputs["extract_features"]
-                z_tmp, mu_1, log_sigma_1 = self.bottleneck(feature)
+                # outputs = self.wavlm(audio)
+                outputs = self.wavlm(audio, output_hidden_states=True)
+                # feature = outputs["extract_features"]
+                feature = outputs.hidden_states[9]
+                z_tmp, mu_1, log_sigma_1 = self.bottleneck(
+                    feature, f0_to_coarse(audio_f0[:, :-1])
+                )
                 z_tmp, mu_1, log_sigma_1 = (
                     F.pad(z_tmp, (0, 1)),
                     F.pad(mu_1, (0, 1)),
                     F.pad(log_sigma_1, (0, 1)),
                 )
-
-                # audio_f0_aug = compute_f0(aug_audio)
 
                 # audio_lf0_aug = 2595.0 * torch.log10(1.0 + audio_f0_aug / 700.0) / 500
                 # audio_lf0_aug = torch.log10(1.0 + audio_f0_aug)
@@ -266,7 +297,6 @@ class Trainer:
                 pred_audio_f0_aug = 700 * (
                     torch.pow(10, pred_audio_lf0_aug * 500 / 2595) - 1
                 )
-                # pred_audio_f0_aug = torch.pow(10, pred_audio_lf0_aug) - 1
 
                 spec = self.spec(audio)[:, :, :-1]
                 z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
@@ -569,11 +599,15 @@ class Trainer:
                 y = y[: 16000 * 30]
                 y = y.to(device=self.device).unsqueeze(0)
 
-                outputs = self.wavlm(y)
-                feat = outputs["extract_features"]
-                z, mu, log_sigma = self.bottleneck(feat)
+                # outputs = self.wavlm(y)
+                # feat = outputs["extract_features"]
+
+                outputs = self.wavlm(y, output_hidden_states=True)
+                feat = outputs.hidden_states[9]
 
                 f0 = compute_f0(y)
+
+                z, mu, log_sigma = self.bottleneck(feat, f0_to_coarse(f0))
 
                 lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
                 # lf0 = torch.log10(f0 + 1)
@@ -612,7 +646,7 @@ class Trainer:
 
                 # historyを初期化
                 audio_history = torch.zeros((1, audio_history_size)).to(self.device)
-                feat_history = torch.zeros((1, history_size, 512)).to(self.device)
+                feat_history = torch.zeros((1, history_size, 1024)).to(self.device)
                 feat_vocoder_history = torch.zeros((1, 192, vocoder_history_size)).to(
                     self.device
                 )
@@ -629,19 +663,22 @@ class Trainer:
                         :, -audio_history_size:
                     ]
 
-                    outputs = self.wavlm(audio_history)
-                    feat = outputs["extract_features"][:, -4:, :]
+                    # outputs = self.wavlm(audio_history)
+                    # feat = outputs["extract_features"][:, -4:, :]
+
+                    outputs = self.wavlm(audio_history, output_hidden_states=True)
+                    feat = outputs.hidden_states[9][:, -4:, :]
 
                     feat_history = torch.cat([feat_history, feat], dim=1)[
                         :, -history_size:, :
                     ]
 
-                    z, _, _ = self.bottleneck(feat_history)
-                    feat = self.flow.reverse(z)[:, :, -4:]
-
                     f0 = compute_f0(audio_history)
                     # norm_f0 = normalize_f0(f0)
                     # pred_f0 = self.f0_decoder(z, norm_f0)[:, -4:]
+
+                    z, _, _ = self.bottleneck(feat_history, f0_to_coarse(f0))
+                    feat = self.flow.reverse(z)[:, :, -4:]
 
                     lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
                     # lf0 = torch.log10(f0 + 1)
