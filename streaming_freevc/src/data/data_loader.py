@@ -11,7 +11,8 @@ import torchaudio
 
 # from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
-from src.hifigan.models import Generator
+
+# from src.hifigan.models import Generator
 
 AUDIO_LENGTH = 16000 * 2
 
@@ -90,16 +91,16 @@ class VoiceDataset(IterableDataset):
         self.min_scale = min_scale
         self.max_scale = max_scale
 
-        with open("src/hifigan/config.json", "r") as f:
-            config = json.load(f)
+        # with open("src/hifigan/config.json", "r") as f:
+        #     config = json.load(f)
 
-        config = AttrDict(config)
-        vocoder = Generator(config)
-        ckpt = torch.load("src/hifigan/generator_v3")
-        vocoder.load_state_dict(ckpt["generator"])
-        vocoder.eval()
-        vocoder.remove_weight_norm()
-        self.vocoder = vocoder.cuda()
+        # config = AttrDict(config)
+        # vocoder = Generator(config)
+        # ckpt = torch.load("src/hifigan/generator_v3")
+        # vocoder.load_state_dict(ckpt["generator"])
+        # vocoder.eval()
+        # vocoder.remove_weight_norm()
+        # self.vocoder = vocoder.cuda()
 
         # self.dataset = load_dataset(  # type: ignore
         #     "reazon-research/reazonspeech", "medium", streaming=True
@@ -168,30 +169,30 @@ class VoiceDataset(IterableDataset):
                     "constant",
                 )
 
-            aug_audio = torchaudio.functional.resample(clip_audio.cuda(), 16000, 22050)
-            if aug_audio.abs().max() >= 1.0:
-                aug_audio = aug_audio / aug_audio.abs().max()
+            # aug_audio = torchaudio.functional.resample(clip_audio.cuda(), 16000, 22050)
+            # if aug_audio.abs().max() >= 1.0:
+            #     aug_audio = aug_audio / aug_audio.abs().max()
 
-            mel = mel_spectrogram(aug_audio, 1024, 80, 22050, 256, 1024, 0, 8000)
+            # mel = mel_spectrogram(aug_audio, 1024, 80, 22050, 256, 1024, 0, 8000)
 
-            # 縦方向にリサイズする
-            height = scale
-            mel = torchvision.transforms.functional.resize(
-                img=mel,
-                size=(height, mel.shape[2]),
-                antialias=False,
-            )
-            if scale < 80:
-                mel = torchvision.transforms.Pad(
-                    padding=(0, 0, 0, 80 - mel.shape[1]), padding_mode="edge"
-                )(mel)
-            else:
-                mel = mel[:, :80, :]
+            # # 縦方向にリサイズする
+            # height = scale
+            # mel = torchvision.transforms.functional.resize(
+            #     img=mel,
+            #     size=(height, mel.shape[2]),
+            #     antialias=False,
+            # )
+            # if scale < 80:
+            #     mel = torchvision.transforms.Pad(
+            #         padding=(0, 0, 0, 80 - mel.shape[1]), padding_mode="edge"
+            #     )(mel)
+            # else:
+            #     mel = mel[:, :80, :]
 
-            with torch.no_grad():
-                aug_audio = self.vocoder(mel)
-                aug_audio = torchaudio.functional.resample(aug_audio, 22050, 16000)
-                aug_audio = aug_audio.squeeze().cpu()
+            # with torch.no_grad():
+            #     aug_audio = self.vocoder(mel)
+            #     aug_audio = torchaudio.functional.resample(aug_audio, 22050, 16000)
+            #     aug_audio = aug_audio.squeeze().cpu()
 
             # ## reazon speechからfakeの音声を作る
             # data = next(dataset_iter)
@@ -212,7 +213,8 @@ class VoiceDataset(IterableDataset):
             #     )
 
             # yield clip_audio.squeeze(0), aug_audio, clip_fake_audio.squeeze(0)
-            yield clip_audio.squeeze(0), aug_audio
+            # yield clip_audio.squeeze(0), aug_audio
+            yield clip_audio.squeeze(0)
 
 
 class ShuffleDataset(torch.utils.data.IterableDataset):

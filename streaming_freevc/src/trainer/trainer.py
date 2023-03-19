@@ -144,8 +144,8 @@ class Trainer:
             f"g_lr: {0.00025}  \n"
             + f"d_lr: {0.00025}  \n"
             + f"sr-range: {40}-{100}  \n"
-            + f"sr-enabled: {True}  \n"
-            + f"bottleneck: {32}, {256}",
+            + f"sr-enabled: {False}  \n"
+            + f"bottleneck: {192}, {256}",
             0,
         )
 
@@ -233,18 +233,24 @@ class Trainer:
         while self.step < self.max_step:
 
             # for audio, aug_audio, fake_audio in self.data_loader:
-            for audio, aug_audio in self.data_loader:
+            # for audio, aug_audio in self.data_loader:
+            for audio in self.data_loader:
                 audio = audio.to(self.device)
-                aug_audio = aug_audio.to(self.device)
                 # fake_audio = fake_audio.to(self.device)
 
                 audio_f0 = compute_f0(audio)
                 audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
                 # audio_lf0 = torch.log10(audio_f0 + 1)
 
-                outputs = self.wavlm(aug_audio)
+                # outputs = self.wavlm(aug_audio)
+                outputs = self.wavlm(audio)
                 feature = outputs["extract_features"]
                 z_tmp, mu_1, log_sigma_1 = self.bottleneck(feature)
+                z_tmp, mu_1, log_sigma_1 = (
+                    F.pad(z_tmp, (0, 1)),
+                    F.pad(mu_1, (0, 1)),
+                    F.pad(log_sigma_1, (0, 1)),
+                )
 
                 # audio_f0_aug = compute_f0(aug_audio)
 
@@ -474,7 +480,8 @@ class Trainer:
                     # bottleneck_g_losses = []
 
                 # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
-                del audio, aug_audio, outputs, feature, mu_1, log_sigma_1, spec, z
+                # del audio, aug_audio, outputs, feature, mu_1, log_sigma_1, spec, z
+                del audio, outputs, feature, mu_1, log_sigma_1, spec, z
                 del mu_2, log_sigma_2, z_p, audio_hat, mel, mel_hat
                 del y_ds_hat_g, y_df_hat_g
                 del loss_disc_f, losses_disc_f_r, losses_disc_f_g
