@@ -239,8 +239,8 @@ class Trainer:
                 # fake_audio = fake_audio.to(self.device)
 
                 audio_f0 = compute_f0(audio)
-                # audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
-                audio_lf0 = torch.log10(audio_f0 + 1)
+                audio_lf0 = 2595.0 * torch.log10(1.0 + audio_f0 / 700.0) / 500
+                # audio_lf0 = torch.log10(audio_f0 + 1)
 
                 outputs = self.wavlm(aug_audio)
                 feature = outputs["extract_features"]
@@ -257,10 +257,10 @@ class Trainer:
                 # norm_audio_lf0_aug = normalize_f0(audio_lf0_aug, random_scale=True)
                 norm_audio_lf0_aug = normalize_f0(audio_lf0, random_scale=True)
                 pred_audio_lf0_aug = self.f0_decoder(z_tmp, norm_audio_lf0_aug)
-                # pred_audio_f0_aug = 700 * (
-                #     torch.pow(10, pred_audio_lf0_aug * 500 / 2595) - 1
-                # )
-                pred_audio_f0_aug = torch.pow(10, pred_audio_lf0_aug) - 1
+                pred_audio_f0_aug = 700 * (
+                    torch.pow(10, pred_audio_lf0_aug * 500 / 2595) - 1
+                )
+                # pred_audio_f0_aug = torch.pow(10, pred_audio_lf0_aug) - 1
 
                 spec = self.spec(audio)[:, :, :-1]
                 z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
@@ -569,12 +569,12 @@ class Trainer:
 
                 f0 = compute_f0(y)
 
-                # lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
-                lf0 = torch.log10(f0 + 1)
+                lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
+                # lf0 = torch.log10(f0 + 1)
                 norm_lf0 = normalize_f0(lf0)
                 pred_lf0 = self.f0_decoder(z, norm_lf0)
-                # pred_f0 = 700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1)
-                pred_f0 = torch.pow(10, pred_lf0) - 1
+                pred_f0 = 700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1)
+                # pred_f0 = torch.pow(10, pred_lf0) - 1
                 # norm_f0 = normalize_f0(f0)
                 # pred_f0 = self.f0_decoder(z, norm_f0)
 
@@ -637,12 +637,12 @@ class Trainer:
                     # norm_f0 = normalize_f0(f0)
                     # pred_f0 = self.f0_decoder(z, norm_f0)[:, -4:]
 
-                    # lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
-                    lf0 = torch.log10(f0 + 1)
+                    lf0 = 2595.0 * torch.log10(1.0 + f0 / 700.0) / 500
+                    # lf0 = torch.log10(f0 + 1)
                     norm_lf0 = normalize_f0(lf0)
                     pred_lf0 = self.f0_decoder(z, norm_lf0)
-                    # pred_f0 = (700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1))[:, -4:]
-                    pred_f0 = (torch.pow(10, pred_lf0) - 1)[:, -4:]
+                    pred_f0 = (700 * (torch.pow(10, pred_lf0 * 500 / 2595) - 1))[:, -4:]
+                    # pred_f0 = (torch.pow(10, pred_lf0) - 1)[:, -4:]
 
                     feat_vocoder_history = torch.cat(
                         [feat_vocoder_history, feat], dim=2

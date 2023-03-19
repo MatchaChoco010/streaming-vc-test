@@ -363,8 +363,8 @@ class Generator(torch.nn.Module):
         super().__init__()
         h = {
             "sampling_rate": 44100,
-            # "inter_channels": 192,
-            "inter_channels": 256,
+            "inter_channels": 192,
+            # "inter_channels": 256,
             "resblock": "1",
             "resblock_kernel_sizes": [3, 7, 11],
             "resblock_dilation_sizes": [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
@@ -372,7 +372,7 @@ class Generator(torch.nn.Module):
             "upsample_rates": [10, 8, 2, 2],
             "upsample_initial_channel": 512,
             # "upsample_kernel_sizes": [16, 16, 4, 4, 4],
-            "upsample_kernel_sizes":  [16, 16, 4, 4],
+            "upsample_kernel_sizes": [16, 16, 4, 4],
             "gin_channels": 256,
         }
         self.h = h

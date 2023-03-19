@@ -183,8 +183,7 @@ class F0Decoder(nn.Module):
 
     def forward(self, x, norm_f0):
         x = torch.detach(x)
-        # x += self.f0_prenet(norm_f0.unsqueeze(1))[:, :, : x.shape[2]]
-        x = self.f0_prenet(norm_f0.unsqueeze(1))[:, :, : x.shape[2]]
+        x += self.f0_prenet(norm_f0.unsqueeze(1))[:, :, : x.shape[2]]
         x = self.prenet(x)
         x = self.decoder(x)
         x = self.proj(x)

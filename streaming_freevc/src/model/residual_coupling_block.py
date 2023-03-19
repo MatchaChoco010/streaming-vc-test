@@ -7,9 +7,9 @@ from src.module.wn import WN
 class ResidualCouplingLayer(nn.Module):
     def __init__(self):
         super(ResidualCouplingLayer, self).__init__()
-        self.pre = nn.Conv1d(128, 512, 1)
+        self.pre = nn.Conv1d(192 // 2, 512, 1)
         self.enc = WN(hidden_dim=512, kernel_size=5, dilation_rate=1, n_layers=4)
-        self.post = nn.Conv1d(512, 128, 1)
+        self.post = nn.Conv1d(512, 192 // 2, 1)
         self.post.weight.data.zero_()
         self.post.bias.data.zero_()
 
