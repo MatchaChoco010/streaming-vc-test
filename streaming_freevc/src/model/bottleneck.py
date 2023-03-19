@@ -34,7 +34,7 @@ class Bottleneck(nn.Module):
         self,
         xs: torch.Tensor,
         # f0: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensorr, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # xs = self.bn(self.layers(xs).transpose(1, 2))
         xs = xs.transpose(1, 2)
         xs = self.pre_conv(xs)
