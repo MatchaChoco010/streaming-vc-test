@@ -96,12 +96,6 @@ class Trainer:
             elim_0th=True,
         ).to(self.device)
 
-        self.vocoder_opt = torch.compile(self.vocoder)
-        self.posterior_encoder_opt = torch.compile(self.posterior_encoder)
-        self.mpd_opt = torch.compile(self.mpd)
-        self.msd_opt = torch.compile(self.msd)
-        self.reg_loss_opt = torch.compile(self.reg_loss)
-
         self.data_loader = load_data(voice_data_dir, batch_size)
 
         self.optimizer_g = optim.AdamW(
@@ -206,9 +200,9 @@ class Trainer:
                 audio_f0 = compute_f0(audio)
 
                 spec = self.spec(audio)[:, :, :-1]
-                z, mu_2, log_sigma_2 = self.posterior_encoder_opt(spec)
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
 
-                audio_hat = self.vocoder_opt(z, audio_f0)
+                audio_hat = self.vocoder(z, audio_f0)
 
                 mel = log_melspectrogram(self.spec(audio.unsqueeze(1))[:, :, :-1])
                 mel_hat = log_melspectrogram(self.spec(audio_hat)[:, :, :-1])
@@ -217,7 +211,7 @@ class Trainer:
                 self.optimizer_d.zero_grad()
 
                 ## MPD
-                y_df_hat_r, y_df_hat_g, _, _ = self.mpd_opt(
+                y_df_hat_r, y_df_hat_g, _, _ = self.mpd(
                     audio.unsqueeze(1), audio_hat.detach()
                 )
                 loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(
@@ -225,7 +219,7 @@ class Trainer:
                 )
 
                 ## MSD
-                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd_opt(
+                y_ds_hat_r, y_ds_hat_g, _, _ = self.msd(
                     audio.unsqueeze(1), audio_hat.detach()
                 )
                 loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
@@ -244,10 +238,10 @@ class Trainer:
                 loss_mel = F.l1_loss(mel, mel_hat) * 45
 
                 ## GAN Loss
-                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd_opt(
+                y_df_hat_r, y_df_hat_g, fmap_f_r, fmap_f_g = self.mpd(
                     audio.unsqueeze(1), audio_hat
                 )
-                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd_opt(
+                y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = self.msd(
                     audio.unsqueeze(1), audio_hat
                 )
                 # loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
@@ -383,8 +377,8 @@ class Trainer:
                 y_f0 = compute_f0(y.unsqueeze(0))
 
                 spec = self.spec(y.unsqueeze(0))[:, :, :-1]
-                z, mu_2, log_sigma_2 = self.posterior_encoder_opt(spec)
-                audio_hat = self.vocoder_opt(z, y_f0)
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                audio_hat = self.vocoder(z, y_f0)
 
                 self.log.add_audio(
                     f"posterior-vocoder/audio/1x/{filepath.name}",
@@ -397,8 +391,8 @@ class Trainer:
                 y_f0 = compute_f0(y.unsqueeze(0)) * 0.5
 
                 spec = self.spec(y.unsqueeze(0))[:, :, :-1]
-                z, mu_2, log_sigma_2 = self.posterior_encoder_opt(spec)
-                audio_hat = self.vocoder_opt(z, y_f0)
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                audio_hat = self.vocoder(z, y_f0)
 
                 self.log.add_audio(
                     f"posterior-vocoder/audio/0.5x/{filepath.name}",
@@ -411,8 +405,8 @@ class Trainer:
                 y_f0 = compute_f0(y.unsqueeze(0)) * 1.5
 
                 spec = self.spec(y.unsqueeze(0))[:, :, :-1]
-                z, mu_2, log_sigma_2 = self.posterior_encoder_opt(spec)
-                audio_hat = self.vocoder_opt(z, y_f0)
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                audio_hat = self.vocoder(z, y_f0)
 
                 self.log.add_audio(
                     f"posterior-vocoder/audio/1.5x/{filepath.name}",
@@ -425,8 +419,8 @@ class Trainer:
                 y_f0 = compute_f0(y.unsqueeze(0)) * 2
 
                 spec = self.spec(y.unsqueeze(0))[:, :, :-1]
-                z, mu_2, log_sigma_2 = self.posterior_encoder_opt(spec)
-                audio_hat = self.vocoder_opt(z, y_f0)
+                z, mu_2, log_sigma_2 = self.posterior_encoder(spec)
+                audio_hat = self.vocoder(z, y_f0)
 
                 self.log.add_audio(
                     f"posterior-vocoder/audio/2x/{filepath.name}",
