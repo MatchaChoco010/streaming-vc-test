@@ -102,7 +102,7 @@ class Trainer:
         self.msd_opt = torch.compile(self.msd)
         self.reg_loss_opt = torch.compile(self.reg_loss)
 
-        self.data_loader = load_data(voice_data_dir, batch_size, 40, 100)
+        self.data_loader = load_data(voice_data_dir, batch_size)
 
         self.optimizer_g = optim.AdamW(
             list(self.vocoder.parameters()),
