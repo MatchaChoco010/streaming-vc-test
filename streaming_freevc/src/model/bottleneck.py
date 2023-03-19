@@ -31,6 +31,7 @@ class Bottleneck(nn.Module):
         self, xs: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # xs = self.bn(self.layers(xs).transpose(1, 2))
+        xs = xs.transpose(1, 2)
         mu = self.proj_mu(xs)
         log_sigma = self.proj_log_sigma(xs)
         z = mu + torch.rand_like(mu) * torch.exp(log_sigma)

@@ -160,7 +160,7 @@ class F0Decoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.out_channels = 1
-        self.hidden_channels = 256
+        self.hidden_channels = 192
         self.filter_channels = 768
         self.n_heads = 2
         self.n_layers = 6

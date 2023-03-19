@@ -607,7 +607,7 @@ class Trainer:
                 # historyを初期化
                 audio_history = torch.zeros((1, audio_history_size)).to(self.device)
                 feat_history = torch.zeros((1, history_size, 512)).to(self.device)
-                feat_vocoder_history = torch.zeros((1, 256, vocoder_history_size)).to(
+                feat_vocoder_history = torch.zeros((1, 192, vocoder_history_size)).to(
                     self.device
                 )
                 f0_history = torch.zeros((1, vocoder_history_size)).to(self.device)

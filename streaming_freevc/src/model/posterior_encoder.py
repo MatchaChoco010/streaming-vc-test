@@ -9,7 +9,7 @@ class PosteriorEncoder(nn.Module):
     def __init__(
         self,
         in_channels=80,
-        out_channels=256,
+        out_channels=192,
         hidden_channels=256,
         kernel_size=5,
         dilation_rate=1,
