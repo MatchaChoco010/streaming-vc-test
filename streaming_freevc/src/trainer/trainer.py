@@ -141,7 +141,7 @@ class Trainer:
         # self.mpd_compiled = torch.compile(self.mpd)
         # self.msd_compiled = torch.compile(self.msd)
 
-        self.data_loader = load_data(voice_data_dir, batch_size, 40, 100)
+        self.data_loader = load_data(voice_data_dir, batch_size, 35, 110)
 
         self.optimizer_g = optim.AdamW(
             list(self.f0_decoder.parameters())
@@ -170,8 +170,8 @@ class Trainer:
             "train/params",
             f"g_lr: {0.0001}  \n"
             + f"d_lr: {0.0001}  \n"
-            + f"sr-range: {40}-{100}  \n"
-            + f"sr-enabled: {False}  \n"
+            + f"sr-range: {35}-{110}  \n"
+            + f"sr-enabled: {True}  \n"
             + f"bottleneck: {192}, {256}",
             0,
         )
@@ -262,9 +262,10 @@ class Trainer:
         while self.step < self.max_step:
 
             # for audio, aug_audio, fake_audio in self.data_loader:
-            # for audio, aug_audio in self.data_loader:
-            for audio in self.data_loader:
+            for audio, aug_audio in self.data_loader:
+                # for audio in self.data_loader:
                 audio = audio.to(self.device)
+                aug_audio = aug_audio.to(self.device)
                 # fake_audio = fake_audio.to(self.device)
 
                 audio_f0 = compute_f0(audio)
@@ -277,10 +278,11 @@ class Trainer:
 
                 # outputs = self.wavlm(aug_audio)
                 # outputs = self.wavlm(audio)
-                outputs = self.wavlm(audio, output_hidden_states=True)
+                # outputs = self.wavlm(audio, output_hidden_states=True)
+                outputs = self.wavlm(aug_audio, output_hidden_states=True)
                 # feature = outputs["extract_features"]
                 feature = outputs.hidden_states[9]
-                feature = F.pad(feature, (0, 0, 0, 1))
+                # feature = F.pad(feature, (0, 0, 0, 1))
                 # z_tmp, mu_1, log_sigma_1 = self.bottleneck(
                 #     feature, f0_to_coarse(audio_f0[:, :-1])
                 # )
