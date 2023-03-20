@@ -116,49 +116,6 @@ class VoiceDataset(IterableDataset):
             if audio.abs().max() >= 1.0:
                 audio = audio / audio.abs().max()
 
-            # for scale in range(self.min_scale, self.max_scale + 1):
-
-            #     start = random.randint(0, max(0, audio.shape[1] - AUDIO_LENGTH))
-            #     clip_audio = audio[:, start : start + AUDIO_LENGTH]
-            #     if clip_audio.shape[1] < AUDIO_LENGTH:
-            #         clip_audio = F.pad(
-            #             clip_audio,
-            #             (0, AUDIO_LENGTH - clip_audio.shape[1]),
-            #             "constant",
-            #         )
-
-            #     aug_audio = torchaudio.functional.resample(
-            #         clip_audio.cuda(), 16000, 22050
-            #     )
-            #     if aug_audio.abs().max() >= 1.0:
-            #         aug_audio = aug_audio / aug_audio.abs().max()
-
-            #     mel = mel_spectrogram(aug_audio, 1024, 80, 22050, 256, 1024, 0, 8000)
-
-            # # 縦方向にリサイズする
-            # height = scale
-            # mel = torchvision.transforms.functional.resize(
-            #     img=mel,
-            #     size=(height, mel.shape[2]),
-            #     antialias=False,
-            # )
-            # if scale < 80:
-            #     mel = torchvision.transforms.Pad(
-            #         padding=(0, 0, 0, 80 - mel.shape[1]), padding_mode="edge"
-            #     )(mel)
-            # else:
-            #     mel = mel[:, :80, :]
-
-            # with torch.no_grad():
-            #     aug_audio = self.vocoder(mel)
-            #     aug_audio = torchaudio.functional.resample(aug_audio, 22050, 16000)
-            #     aug_audio = aug_audio.squeeze().cpu()
-
-            #     yield clip_audio, aug_audio
-            #     # yield clip_audio, torch.nn.functional.pad(
-            #     #     clip_audio.squeeze(), (0, 256)
-            #     # )
-
             scale = random.randint(self.min_scale, self.max_scale)
 
             start = random.randint(0, max(0, audio.shape[1] - AUDIO_LENGTH))
@@ -215,7 +172,6 @@ class VoiceDataset(IterableDataset):
 
             # yield clip_audio.squeeze(0), aug_audio, clip_fake_audio.squeeze(0)
             yield clip_audio.squeeze(0), aug_audio
-            # yield clip_audio.squeeze(0)
 
 
 class ShuffleDataset(torch.utils.data.IterableDataset):

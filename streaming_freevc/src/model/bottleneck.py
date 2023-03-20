@@ -362,12 +362,10 @@ class BottleneckPre(nn.Module):
 class BottleneckEncoder(nn.Module):
     def __init__(self):
         super(BottleneckEncoder, self).__init__()
-        self.f0_embed = nn.Embedding(256, 192)
         self.proj = nn.Conv1d(192, 192 * 2, 1)
         self.enc_ = Encoder(192, 768, 2, 6, 3, 0.1)
 
-    def forward(self, x, f0, noise_scale=1):
-        x = x + self.f0_embed(f0).transpose(1, 2)
+    def forward(self, x, noise_scale=1):
         x_mask = torch.ones_like(x[:, 0, :]).unsqueeze(1)
         x = self.enc_(x, x_mask)
         stats = self.proj(x)
